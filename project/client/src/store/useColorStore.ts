@@ -9,6 +9,7 @@ interface ColorState {
   palette: PaletteColor[]
   setSelectedColor: (color: PaletteColor) => void
   addToRecent: (color: PaletteColor) => void
+  addRecentColor: (color: PaletteColor) => void // alias
   toggleFavorite: (color: PaletteColor) => void
 }
 
@@ -32,6 +33,11 @@ export const useColorStore = create<ColorState>()(
             recentColors: [color, ...filtered].slice(0, 8),
           }
         })
+      },
+
+      // alias for addToRecent
+      addRecentColor: (color) => {
+        get().addToRecent(color)
       },
 
       toggleFavorite: (color) => {

@@ -1,46 +1,167 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { ColoringCanvas, ColorPalette, Toolbar } from '@/components/canvas'
+import type { ColoringCanvasRef } from '@/components/canvas/ColoringCanvas'
 import { ColoredRegion } from '@/types'
+import {
+  saveDraft,
+  getDraft,
+  saveArtwork,
+  createThumbnail,
+  canvasToDataUrl,
+} from '@/lib/db'
+
+// 자동 저장 간격 (밀리초)
+const AUTO_SAVE_INTERVAL = 30000 // 30초
 
 export default function ColoringPage() {
   const params = useParams()
   const router = useRouter()
   const templateId = params.templateId as string
 
+  const canvasRef = useRef<ColoringCanvasRef>(null)
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+
   const [isSaving, setIsSaving] = useState(false)
   const [showPalette, setShowPalette] = useState(true)
+  const [coloredRegions, setColoredRegions] = useState<ColoredRegion[]>([])
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  // 드래프트 로드
+  useEffect(() => {
+    const loadDraft = async () => {
+      try {
+        const draft = await getDraft(templateId)
+        if (draft && draft.coloredRegions.length > 0) {
+          setColoredRegions(draft.coloredRegions)
+          toast.info('이전 작업을 불러왔습니다.')
+        }
+      } catch (error) {
+        console.error('Failed to load draft:', error)
+      }
+    }
+
+    loadDraft()
+  }, [templateId])
+
+  // 자동 저장 설정
+  useEffect(() => {
+    if (!hasUnsavedChanges) return
+
+    autoSaveTimerRef.current = setInterval(async () => {
+      try {
+        await saveDraft({
+          id: templateId,
+          templateId,
+          coloredRegions,
+          updatedAt: Date.now(),
+        })
+      } catch (error) {
+        console.error('Auto-save failed:', error)
+      }
+    }, AUTO_SAVE_INTERVAL)
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearInterval(autoSaveTimerRef.current)
+      }
+    }
+  }, [templateId, coloredRegions, hasUnsavedChanges])
+
+  // 페이지 이탈 시 저장 확인
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges])
 
   const handleColorChange = useCallback((data: ColoredRegion[]) => {
-    // 자동 저장 로직 (IndexedDB)
-    // TODO: Implement auto-save
+    setColoredRegions(data)
+    setHasUnsavedChanges(true)
   }, [])
 
   const handleSave = useCallback(async () => {
     setIsSaving(true)
     try {
-      // TODO: Implement save to IndexedDB and Supabase
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const canvas = canvasRef.current?.getCanvas()
+      if (!canvas) {
+        throw new Error('Canvas not available')
+      }
+
+      const canvasDataUrl = canvasToDataUrl(canvas)
+      const thumbnailDataUrl = createThumbnail(canvas)
+
+      // IndexedDB에 저장
+      await saveArtwork({
+        id: `artwork-${templateId}-${Date.now()}`,
+        templateId,
+        title: `작품 ${new Date().toLocaleDateString('ko-KR')}`,
+        thumbnailDataUrl,
+        canvasDataUrl,
+        coloredRegions,
+        progress: calculateProgress(coloredRegions),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        isSynced: false,
+      })
+
+      setHasUnsavedChanges(false)
       toast.success('작품이 저장되었습니다!')
-    } catch {
+    } catch (error) {
+      console.error('Save failed:', error)
       toast.error('저장에 실패했습니다. 다시 시도해주세요.')
     } finally {
       setIsSaving(false)
     }
+  }, [templateId, coloredRegions])
+
+  const handleZoomIn = useCallback(() => {
+    canvasRef.current?.zoomIn()
+  }, [])
+
+  const handleZoomOut = useCallback(() => {
+    canvasRef.current?.zoomOut()
+  }, [])
+
+  const handleResetZoom = useCallback(() => {
+    canvasRef.current?.resetZoom()
   }, [])
 
   const handleHelp = useCallback(() => {
-    toast.info('색상을 선택하고 원하는 영역을 터치하세요!')
+    toast.info(
+      <div className="space-y-2">
+        <p className="font-semibold">사용 방법</p>
+        <ul className="list-disc pl-4 text-sm">
+          <li>색상을 선택하고 원하는 영역을 터치하세요</li>
+          <li>두 손가락으로 확대/축소할 수 있어요</li>
+          <li>한 손가락으로 드래그하면 이동해요</li>
+          <li>실수했다면 되돌리기 버튼을 눌러주세요</li>
+        </ul>
+      </div>,
+      { duration: 5000 }
+    )
   }, [])
 
   const handleBack = useCallback(() => {
-    router.back()
-  }, [router])
+    if (hasUnsavedChanges) {
+      if (confirm('저장하지 않은 변경사항이 있습니다. 나가시겠습니까?')) {
+        router.back()
+      }
+    } else {
+      router.back()
+    }
+  }, [router, hasUnsavedChanges])
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -55,14 +176,29 @@ export default function ColoringPage() {
         >
           <ArrowLeft className="h-6 w-6" />
         </Button>
-        <h1 className="text-lg font-semibold">컬러링</h1>
-        <div className="w-12" /> {/* Spacer for alignment */}
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-semibold">컬러링</h1>
+          {hasUnsavedChanges && (
+            <span className="h-2 w-2 rounded-full bg-orange-500" title="저장되지 않음" />
+          )}
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleResetZoom}
+          className="touch-target-lg"
+          aria-label="줌 초기화"
+        >
+          <RotateCcw className="h-5 w-5" />
+        </Button>
       </header>
 
       {/* 캔버스 영역 */}
       <div className="flex-1 overflow-hidden">
         <ColoringCanvas
+          ref={canvasRef}
           templateUrl={undefined} // TODO: Load from template
+          initialData={coloredRegions}
           onColorChange={handleColorChange}
           className="h-full w-full"
         />
@@ -73,6 +209,8 @@ export default function ColoringPage() {
         <Toolbar
           onSave={handleSave}
           onHelp={handleHelp}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
           isSaving={isSaving}
         />
       </div>
@@ -87,11 +225,21 @@ export default function ColoringPage() {
       {/* 팔레트 토글 버튼 */}
       <button
         onClick={() => setShowPalette(!showPalette)}
-        className="absolute bottom-32 right-4 rounded-full bg-primary p-3 text-primary-foreground shadow-lg touch-target-lg"
+        className="absolute bottom-32 right-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-2xl text-primary-foreground shadow-lg transition-transform active:scale-95"
         aria-label={showPalette ? '팔레트 숨기기' : '팔레트 보기'}
       >
         🎨
       </button>
     </div>
   )
+}
+
+/**
+ * 진행률 계산 (간단한 추정)
+ */
+function calculateProgress(regions: ColoredRegion[]): number {
+  // 실제로는 템플릿의 총 영역 수와 비교해야 함
+  // 여기서는 간단히 색칠 횟수 기반으로 추정
+  const estimatedTotalRegions = 20
+  return Math.min(Math.round((regions.length / estimatedTotalRegions) * 100), 100)
 }
