@@ -9,8 +9,10 @@ import { ColoredRegion } from '@/types'
 
 interface ColoringCanvasProps {
   templateUrl?: string
+  initialCanvasDataUrl?: string // 저장된 캔버스 이미지 복원용
   initialData?: ColoredRegion[]
   onColorChange?: (data: ColoredRegion[]) => void
+  onCanvasReady?: () => void
   className?: string
 }
 
@@ -34,14 +36,16 @@ const ZOOM_STEP = 0.25
 
 export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>(
   function ColoringCanvas(
-    { templateUrl, initialData = [], onColorChange, className },
+    { templateUrl, initialCanvasDataUrl, initialData = [], onColorChange, onCanvasReady, className },
     ref
   ) {
     const containerRef = useRef<HTMLDivElement>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
     const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null)
     const templateImageRef = useRef<HTMLImageElement | null>(null)
+    const savedImageRef = useRef<HTMLImageElement | null>(null)
     const gestureHandlerRef = useRef<GestureHandler | null>(null)
+    const isRestoredRef = useRef(false)
 
     const [isLoading, setIsLoading] = useState(true)
     const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
@@ -105,6 +109,18 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
         ctx.fillRect(0, 0, offscreen.width, offscreen.height)
       }
     }, [canvasSize])
+
+    // 저장된 캔버스 이미지 로드 (복원용)
+    useEffect(() => {
+      if (!initialCanvasDataUrl || isRestoredRef.current) return
+
+      const img = new Image()
+      img.onload = () => {
+        savedImageRef.current = img
+        isRestoredRef.current = true
+      }
+      img.src = initialCanvasDataUrl
+    }, [initialCanvasDataUrl])
 
     // 템플릿 이미지 로드
     useEffect(() => {
@@ -258,16 +274,40 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
       renderToDisplay()
     }, [transform, renderToDisplay])
 
+    // 저장된 캔버스 복원
+    const restoreSavedCanvas = useCallback(() => {
+      const offscreen = offscreenCanvasRef.current
+      const savedImg = savedImageRef.current
+      if (!offscreen || !savedImg) return false
+
+      const ctx = offscreen.getContext('2d', { willReadFrequently: true })
+      if (!ctx) return false
+
+      ctx.fillStyle = '#FFFFFF'
+      ctx.fillRect(0, 0, offscreen.width, offscreen.height)
+      ctx.drawImage(savedImg, 0, 0, offscreen.width, offscreen.height)
+      renderToDisplay()
+      onCanvasReady?.()
+      return true
+    }, [renderToDisplay, onCanvasReady])
+
     // 캔버스 사이즈 변경 시 렌더링
     useEffect(() => {
       if (canvasSize.width > 0) {
+        // 저장된 이미지가 있으면 먼저 복원 시도
+        if (savedImageRef.current && restoreSavedCanvas()) {
+          return
+        }
+
+        // 저장된 이미지가 없으면 템플릿 또는 테스트 패턴
         if (templateImageRef.current) {
           drawTemplate()
         } else {
           drawTestPattern()
         }
+        onCanvasReady?.()
       }
-    }, [canvasSize, drawTemplate, drawTestPattern])
+    }, [canvasSize, drawTemplate, drawTestPattern, restoreSavedCanvas, onCanvasReady])
 
     // 제스처 핸들러 설정
     useEffect(() => {

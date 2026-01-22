@@ -30,16 +30,24 @@ export default function ColoringPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [showPalette, setShowPalette] = useState(true)
   const [coloredRegions, setColoredRegions] = useState<ColoredRegion[]>([])
+  const [savedCanvasDataUrl, setSavedCanvasDataUrl] = useState<string | undefined>(undefined)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [isCanvasReady, setIsCanvasReady] = useState(false)
 
   // 드래프트 로드
   useEffect(() => {
     const loadDraft = async () => {
       try {
         const draft = await getDraft(templateId)
-        if (draft && draft.coloredRegions.length > 0) {
-          setColoredRegions(draft.coloredRegions)
-          toast.info('이전 작업을 불러왔습니다.')
+        if (draft) {
+          if (draft.coloredRegions.length > 0) {
+            setColoredRegions(draft.coloredRegions)
+          }
+          // 저장된 캔버스 이미지가 있으면 설정
+          if (draft.canvasDataUrl) {
+            setSavedCanvasDataUrl(draft.canvasDataUrl)
+            toast.info('이전 작업을 불러왔습니다.')
+          }
         }
       } catch (error) {
         console.error('Failed to load draft:', error)
@@ -51,16 +59,19 @@ export default function ColoringPage() {
 
   // 자동 저장 설정
   useEffect(() => {
-    if (!hasUnsavedChanges) return
+    if (!hasUnsavedChanges || !isCanvasReady) return
 
     autoSaveTimerRef.current = setInterval(async () => {
       try {
+        const canvasDataUrl = canvasRef.current?.getDataUrl() || undefined
         await saveDraft({
           id: templateId,
           templateId,
           coloredRegions,
+          canvasDataUrl,
           updatedAt: Date.now(),
         })
+        // Auto-save completed
       } catch (error) {
         console.error('Auto-save failed:', error)
       }
@@ -71,12 +82,25 @@ export default function ColoringPage() {
         clearInterval(autoSaveTimerRef.current)
       }
     }
-  }, [templateId, coloredRegions, hasUnsavedChanges])
+  }, [templateId, coloredRegions, hasUnsavedChanges, isCanvasReady])
 
-  // 페이지 이탈 시 저장 확인
+  // 페이지 이탈 시 저장
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
+    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges && isCanvasReady) {
+        // 이탈 전 드래프트 저장 시도
+        try {
+          const canvasDataUrl = canvasRef.current?.getDataUrl() || undefined
+          await saveDraft({
+            id: templateId,
+            templateId,
+            coloredRegions,
+            canvasDataUrl,
+            updatedAt: Date.now(),
+          })
+        } catch (error) {
+          console.error('Failed to save on unload:', error)
+        }
         e.preventDefault()
         e.returnValue = ''
       }
@@ -84,11 +108,15 @@ export default function ColoringPage() {
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges])
+  }, [hasUnsavedChanges, isCanvasReady, templateId, coloredRegions])
 
   const handleColorChange = useCallback((data: ColoredRegion[]) => {
     setColoredRegions(data)
     setHasUnsavedChanges(true)
+  }, [])
+
+  const handleCanvasReady = useCallback(() => {
+    setIsCanvasReady(true)
   }, [])
 
   const handleSave = useCallback(async () => {
@@ -114,6 +142,15 @@ export default function ColoringPage() {
         createdAt: Date.now(),
         updatedAt: Date.now(),
         isSynced: false,
+      })
+
+      // 드래프트도 업데이트
+      await saveDraft({
+        id: templateId,
+        templateId,
+        coloredRegions,
+        canvasDataUrl,
+        updatedAt: Date.now(),
       })
 
       setHasUnsavedChanges(false)
@@ -153,15 +190,25 @@ export default function ColoringPage() {
     )
   }, [])
 
-  const handleBack = useCallback(() => {
-    if (hasUnsavedChanges) {
-      if (confirm('저장하지 않은 변경사항이 있습니다. 나가시겠습니까?')) {
-        router.back()
+  const handleBack = useCallback(async () => {
+    if (hasUnsavedChanges && isCanvasReady) {
+      // 뒤로가기 전 자동 저장
+      try {
+        const canvasDataUrl = canvasRef.current?.getDataUrl() || undefined
+        await saveDraft({
+          id: templateId,
+          templateId,
+          coloredRegions,
+          canvasDataUrl,
+          updatedAt: Date.now(),
+        })
+        toast.success('작업이 자동 저장되었습니다.')
+      } catch (error) {
+        console.error('Failed to save before leaving:', error)
       }
-    } else {
-      router.back()
     }
-  }, [router, hasUnsavedChanges])
+    router.back()
+  }, [router, hasUnsavedChanges, isCanvasReady, templateId, coloredRegions])
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -198,8 +245,10 @@ export default function ColoringPage() {
         <ColoringCanvas
           ref={canvasRef}
           templateUrl={undefined} // TODO: Load from template
+          initialCanvasDataUrl={savedCanvasDataUrl}
           initialData={coloredRegions}
           onColorChange={handleColorChange}
+          onCanvasReady={handleCanvasReady}
           className="h-full w-full"
         />
       </div>
