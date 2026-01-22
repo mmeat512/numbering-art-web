@@ -1,7 +1,7 @@
 'use client'
 
 import { openDB, DBSchema, IDBPDatabase } from 'idb'
-import { ColoredRegion, UserArtwork } from '@/types'
+import { ColoredRegion } from '@/types'
 
 /**
  * IndexedDB 스키마 정의

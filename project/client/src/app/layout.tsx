@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
+import { FontSizeProvider } from '@/components/providers'
 import './globals.css'
 
 const geistSans = Geist({
@@ -22,6 +23,15 @@ export const metadata: Metadata = {
   keywords: ['컬러링', '색칠하기', '시니어', '취미', '두뇌건강', 'PWA'],
   authors: [{ name: 'Digital Coloring App' }],
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -58,9 +68,11 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased font-size-normal`}
       >
-        {children}
+        <FontSizeProvider>
+          {children}
+        </FontSizeProvider>
         <Toaster position="top-center" richColors />
       </body>
     </html>

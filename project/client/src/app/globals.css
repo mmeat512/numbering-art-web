@@ -156,6 +156,52 @@
   }
 }
 
+/* Senior-Friendly Font Sizes */
+.font-size-normal {
+  font-size: 16px;
+}
+.font-size-normal h1 { font-size: 1.875rem; }
+.font-size-normal h2 { font-size: 1.5rem; }
+.font-size-normal h3 { font-size: 1.25rem; }
+.font-size-normal .text-sm { font-size: 0.875rem; }
+.font-size-normal .text-xs { font-size: 0.75rem; }
+.font-size-normal .text-lg { font-size: 1.125rem; }
+
+.font-size-large {
+  font-size: 18px;
+}
+.font-size-large h1 { font-size: 2.25rem; }
+.font-size-large h2 { font-size: 1.75rem; }
+.font-size-large h3 { font-size: 1.5rem; }
+.font-size-large .text-sm { font-size: 1rem; }
+.font-size-large .text-xs { font-size: 0.875rem; }
+.font-size-large .text-lg { font-size: 1.25rem; }
+
+.font-size-extra-large {
+  font-size: 20px;
+}
+.font-size-extra-large h1 { font-size: 2.5rem; }
+.font-size-extra-large h2 { font-size: 2rem; }
+.font-size-extra-large h3 { font-size: 1.75rem; }
+.font-size-extra-large .text-sm { font-size: 1.125rem; }
+.font-size-extra-large .text-xs { font-size: 1rem; }
+.font-size-extra-large .text-lg { font-size: 1.5rem; }
+
+/* High Contrast Mode */
+.high-contrast {
+  --foreground: oklch(0 0 0);
+  --background: oklch(1 0 0);
+  --muted-foreground: oklch(0.3 0 0);
+  --border: oklch(0 0 0);
+}
+
+.high-contrast.dark {
+  --foreground: oklch(1 0 0);
+  --background: oklch(0 0 0);
+  --muted-foreground: oklch(0.8 0 0);
+  --border: oklch(1 0 0);
+}
+
 /* Color Palette for Coloring App */
 :root {
   /* Primary colors for palette - vibrant and distinguishable */

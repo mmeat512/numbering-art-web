@@ -47,6 +47,11 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
     const gestureHandlerRef = useRef<GestureHandler | null>(null)
     const isRestoredRef = useRef(false)
 
+    // Function refs for latest function access
+    const handleCanvasTapRef = useRef<((x: number, y: number) => void) | null>(null)
+    const drawTemplateRef = useRef<(() => void) | null>(null)
+    const drawTestPatternRef = useRef<(() => void) | null>(null)
+
     const [isLoading, setIsLoading] = useState(true)
     const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
     const [transform, setTransform] = useState<Transform>({
@@ -58,6 +63,14 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
     const { selectedColor, addRecentColor } = useColorStore()
     const { pushHistory, currentData, setCurrentData } = useHistoryStore()
 
+    // 줌 핸들러 (먼저 선언)
+    const handleZoom = useCallback((delta: number) => {
+      setTransform((prev) => ({
+        ...prev,
+        scale: Math.min(Math.max(prev.scale + delta, MIN_SCALE), MAX_SCALE),
+      }))
+    }, [])
+
     // 외부에서 접근 가능한 메서드 노출
     useImperativeHandle(ref, () => ({
       getCanvas: () => offscreenCanvasRef.current,
@@ -65,15 +78,7 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
       zoomIn: () => handleZoom(ZOOM_STEP),
       zoomOut: () => handleZoom(-ZOOM_STEP),
       resetZoom: () => setTransform({ scale: 1, translateX: 0, translateY: 0 }),
-    }))
-
-    // 줌 핸들러
-    const handleZoom = useCallback((delta: number) => {
-      setTransform((prev) => ({
-        ...prev,
-        scale: Math.min(Math.max(prev.scale + delta, MIN_SCALE), MAX_SCALE),
-      }))
-    }, [])
+    }), [handleZoom])
 
     // Canvas 크기 설정
     useEffect(() => {
@@ -122,38 +127,40 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
       img.src = initialCanvasDataUrl
     }, [initialCanvasDataUrl])
 
-    // 템플릿 이미지 로드
-    useEffect(() => {
-      if (!templateUrl) {
-        setIsLoading(false)
-        drawTestPattern()
-        return
-      }
-
-      setIsLoading(true)
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-
-      img.onload = () => {
-        templateImageRef.current = img
-        setIsLoading(false)
-        drawTemplate()
-      }
-
-      img.onerror = () => {
-        setIsLoading(false)
-        drawTestPattern()
-      }
-
-      img.src = templateUrl
-    }, [templateUrl])
-
     // 초기 데이터 설정
     useEffect(() => {
       if (initialData.length > 0) {
         setCurrentData(initialData)
       }
     }, [initialData, setCurrentData])
+
+    // 화면에 렌더링
+    const renderToDisplay = useCallback(() => {
+      const canvas = canvasRef.current
+      const offscreen = offscreenCanvasRef.current
+      if (!canvas || !offscreen) return
+
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      // 캔버스 클리어
+      ctx.fillStyle = '#f5f5f5'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+      // Transform 적용
+      ctx.save()
+      ctx.translate(
+        canvas.width / 2 + transform.translateX,
+        canvas.height / 2 + transform.translateY
+      )
+      ctx.scale(transform.scale, transform.scale)
+      ctx.translate(-offscreen.width / 2, -offscreen.height / 2)
+
+      // 오프스크린 캔버스 그리기
+      ctx.drawImage(offscreen, 0, 0)
+
+      ctx.restore()
+    }, [transform])
 
     // 템플릿 그리기
     const drawTemplate = useCallback(() => {
@@ -169,7 +176,7 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
       ctx.drawImage(img, 0, 0, offscreen.width, offscreen.height)
 
       renderToDisplay()
-    }, [])
+    }, [renderToDisplay])
 
     // 테스트 패턴 그리기
     const drawTestPattern = useCallback(() => {
@@ -239,40 +246,7 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
       ctx.stroke()
 
       renderToDisplay()
-    }, [])
-
-    // 화면에 렌더링
-    const renderToDisplay = useCallback(() => {
-      const canvas = canvasRef.current
-      const offscreen = offscreenCanvasRef.current
-      if (!canvas || !offscreen) return
-
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-
-      // 캔버스 클리어
-      ctx.fillStyle = '#f5f5f5'
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-      // Transform 적용
-      ctx.save()
-      ctx.translate(
-        canvas.width / 2 + transform.translateX,
-        canvas.height / 2 + transform.translateY
-      )
-      ctx.scale(transform.scale, transform.scale)
-      ctx.translate(-offscreen.width / 2, -offscreen.height / 2)
-
-      // 오프스크린 캔버스 그리기
-      ctx.drawImage(offscreen, 0, 0)
-
-      ctx.restore()
-    }, [transform])
-
-    // transform 변경 시 렌더링
-    useEffect(() => {
-      renderToDisplay()
-    }, [transform, renderToDisplay])
+    }, [renderToDisplay])
 
     // 저장된 캔버스 복원
     const restoreSavedCanvas = useCallback(() => {
@@ -290,55 +264,6 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
       onCanvasReady?.()
       return true
     }, [renderToDisplay, onCanvasReady])
-
-    // 캔버스 사이즈 변경 시 렌더링
-    useEffect(() => {
-      if (canvasSize.width > 0) {
-        // 저장된 이미지가 있으면 먼저 복원 시도
-        if (savedImageRef.current && restoreSavedCanvas()) {
-          return
-        }
-
-        // 저장된 이미지가 없으면 템플릿 또는 테스트 패턴
-        if (templateImageRef.current) {
-          drawTemplate()
-        } else {
-          drawTestPattern()
-        }
-        onCanvasReady?.()
-      }
-    }, [canvasSize, drawTemplate, drawTestPattern, restoreSavedCanvas, onCanvasReady])
-
-    // 제스처 핸들러 설정
-    useEffect(() => {
-      const container = containerRef.current
-      if (!container) return
-
-      gestureHandlerRef.current = new GestureHandler(container, {
-        minScale: MIN_SCALE,
-        maxScale: MAX_SCALE,
-        onTap: (x, y) => {
-          handleCanvasTap(x, y)
-        },
-        onPan: (deltaX, deltaY) => {
-          setTransform((prev) => ({
-            ...prev,
-            translateX: prev.translateX + deltaX,
-            translateY: prev.translateY + deltaY,
-          }))
-        },
-        onZoom: (scale) => {
-          setTransform((prev) => ({
-            ...prev,
-            scale: Math.min(Math.max(scale, MIN_SCALE), MAX_SCALE),
-          }))
-        },
-      })
-
-      return () => {
-        gestureHandlerRef.current?.destroy()
-      }
-    }, [])
 
     // 탭 이벤트 처리 (Flood Fill)
     const handleCanvasTap = useCallback(
@@ -407,6 +332,103 @@ export const ColoringCanvas = forwardRef<ColoringCanvasRef, ColoringCanvasProps>
         renderToDisplay,
       ]
     )
+
+    // Update function refs
+    useEffect(() => {
+      handleCanvasTapRef.current = handleCanvasTap
+    }, [handleCanvasTap])
+
+    useEffect(() => {
+      drawTemplateRef.current = drawTemplate
+    }, [drawTemplate])
+
+    useEffect(() => {
+      drawTestPatternRef.current = drawTestPattern
+    }, [drawTestPattern])
+
+    // transform 변경 시 렌더링
+    useEffect(() => {
+      renderToDisplay()
+    }, [transform, renderToDisplay])
+
+    // 템플릿 이미지 로드
+    useEffect(() => {
+      if (!templateUrl) {
+        // 비동기로 상태 업데이트하여 렌더링 캐스케이드 방지
+        queueMicrotask(() => {
+          setIsLoading(false)
+          drawTestPatternRef.current?.()
+        })
+        return
+      }
+
+      queueMicrotask(() => setIsLoading(true))
+      const img = new Image()
+      img.crossOrigin = 'anonymous'
+
+      img.onload = () => {
+        templateImageRef.current = img
+        setIsLoading(false)
+        // Use ref to call latest function
+        setTimeout(() => drawTemplateRef.current?.(), 0)
+      }
+
+      img.onerror = () => {
+        setIsLoading(false)
+        setTimeout(() => drawTestPatternRef.current?.(), 0)
+      }
+
+      img.src = templateUrl
+    }, [templateUrl])
+
+    // 캔버스 사이즈 변경 시 렌더링
+    useEffect(() => {
+      if (canvasSize.width > 0) {
+        // 저장된 이미지가 있으면 먼저 복원 시도
+        if (savedImageRef.current && restoreSavedCanvas()) {
+          return
+        }
+
+        // 저장된 이미지가 없으면 템플릿 또는 테스트 패턴
+        if (templateImageRef.current) {
+          drawTemplate()
+        } else {
+          drawTestPattern()
+        }
+        onCanvasReady?.()
+      }
+    }, [canvasSize, drawTemplate, drawTestPattern, restoreSavedCanvas, onCanvasReady])
+
+    // 제스처 핸들러 설정
+    useEffect(() => {
+      const container = containerRef.current
+      if (!container) return
+
+      gestureHandlerRef.current = new GestureHandler(container, {
+        minScale: MIN_SCALE,
+        maxScale: MAX_SCALE,
+        onTap: (x, y) => {
+          handleCanvasTapRef.current?.(x, y)
+        },
+        onPan: (deltaX, deltaY) => {
+          setTransform((prev) => ({
+            ...prev,
+            translateX: prev.translateX + deltaX,
+            translateY: prev.translateY + deltaY,
+          }))
+        },
+        onZoom: (scale) => {
+          setTransform((prev) => ({
+            ...prev,
+            scale: Math.min(Math.max(scale, MIN_SCALE), MAX_SCALE),
+          }))
+        },
+      })
+
+      return () => {
+        gestureHandlerRef.current?.destroy()
+      }
+    }, [])
 
     return (
       <div

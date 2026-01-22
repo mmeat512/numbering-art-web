@@ -1,5 +1,6 @@
 import { Header } from '@/components/layout/Header'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { OnboardingModal } from '@/components/onboarding'
 
 export default function MainLayout({
   children,
@@ -11,6 +12,7 @@ export default function MainLayout({
       <Header showHelp showSettings />
       <main className="flex-1 pb-24">{children}</main>
       <BottomNav />
+      <OnboardingModal />
     </div>
   )
 }
