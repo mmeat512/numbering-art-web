@@ -81,14 +81,6 @@ export default function ColoringPage() {
     }
   }, [resetProgress])
 
-  const handleZoomIn = useCallback(() => {
-    setZoom(gameState.zoomLevel + 0.25)
-  }, [gameState.zoomLevel, setZoom])
-
-  const handleZoomOut = useCallback(() => {
-    setZoom(gameState.zoomLevel - 0.25)
-  }, [gameState.zoomLevel, setZoom])
-
   const handleResetZoom = useCallback(() => {
     setZoom(1)
   }, [setZoom])
