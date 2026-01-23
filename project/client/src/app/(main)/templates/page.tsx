@@ -3,89 +3,15 @@
 import { useState } from 'react'
 import { Search } from 'lucide-react'
 import { TemplateCard, CategoryFilter } from '@/components/templates'
-import { Category, Template } from '@/types'
-
-// 임시 카테고리 데이터
-const categories: Category[] = [
-  { id: 'mandala', name: 'Mandala', nameKo: '만다라', icon: '🔮', sortOrder: 1 },
-  { id: 'animals', name: 'Animals', nameKo: '동물', icon: '🐱', sortOrder: 2 },
-  { id: 'flowers', name: 'Flowers', nameKo: '꽃', icon: '🌸', sortOrder: 3 },
-  { id: 'traditional', name: 'Traditional', nameKo: '전통', icon: '🏮', sortOrder: 4 },
-  { id: 'landscape', name: 'Landscape', nameKo: '풍경', icon: '🏔️', sortOrder: 5 },
-  { id: 'abstract', name: 'Abstract', nameKo: '추상', icon: '🎨', sortOrder: 6 },
-]
-
-// 임시 템플릿 데이터
-const allTemplates: Template[] = [
-  {
-    id: '1',
-    title: '봄 꽃 만다라',
-    categoryId: 'mandala',
-    difficulty: 'easy',
-    imageUrl: '',
-    thumbnailUrl: '',
-    usageCount: 150,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    title: '전통 문양',
-    categoryId: 'traditional',
-    difficulty: 'medium',
-    imageUrl: '',
-    thumbnailUrl: '',
-    usageCount: 120,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    title: '귀여운 고양이',
-    categoryId: 'animals',
-    difficulty: 'easy',
-    imageUrl: '',
-    thumbnailUrl: '',
-    usageCount: 200,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '4',
-    title: '장미 정원',
-    categoryId: 'flowers',
-    difficulty: 'medium',
-    imageUrl: '',
-    thumbnailUrl: '',
-    usageCount: 180,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '5',
-    title: '산과 호수',
-    categoryId: 'landscape',
-    difficulty: 'hard',
-    imageUrl: '',
-    thumbnailUrl: '',
-    usageCount: 90,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '6',
-    title: '기하학 패턴',
-    categoryId: 'abstract',
-    difficulty: 'medium',
-    imageUrl: '',
-    thumbnailUrl: '',
-    usageCount: 110,
-    createdAt: new Date().toISOString(),
-  },
-]
+import { CATEGORIES, SAMPLE_TEMPLATES } from '@/data/templates'
 
 export default function TemplatesPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const filteredTemplates = allTemplates.filter((template) => {
+  const filteredTemplates = SAMPLE_TEMPLATES.filter((template) => {
     const matchesCategory =
-      !selectedCategory || template.categoryId === selectedCategory
+      !selectedCategory || selectedCategory === 'all' || template.categoryId === selectedCategory
     const matchesSearch =
       !searchQuery ||
       template.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -108,7 +34,7 @@ export default function TemplatesPage() {
 
       {/* 카테고리 필터 */}
       <CategoryFilter
-        categories={categories}
+        categories={CATEGORIES}
         selectedId={selectedCategory}
         onSelect={setSelectedCategory}
       />

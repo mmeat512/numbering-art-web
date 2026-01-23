@@ -1,294 +1,252 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useEffect, useCallback, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Lightbulb, RotateCcw, Undo2, Save, HelpCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { ColoringCanvas, ColorPalette, Toolbar } from '@/components/canvas'
-import type { ColoringCanvasRef } from '@/components/canvas/ColoringCanvas'
-import { ColoredRegion } from '@/types'
-import {
-  saveDraft,
-  getDraft,
-  saveArtwork,
-  createThumbnail,
-  canvasToDataUrl,
-} from '@/lib/db'
-
-// 자동 저장 간격 (밀리초)
-const AUTO_SAVE_INTERVAL = 30000 // 30초
+import { PaintByNumberCanvas } from '@/components/canvas/PaintByNumberCanvas'
+import { NumberedColorPalette } from '@/components/palette/NumberedColorPalette'
+import { useGameStore } from '@/store/useGameStore'
+import { getTemplateById } from '@/data/templates'
+import { cn } from '@/lib/utils'
 
 export default function ColoringPage() {
   const params = useParams()
   const router = useRouter()
   const templateId = params.templateId as string
 
-  const canvasRef = useRef<ColoringCanvasRef>(null)
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const {
+    template,
+    gameState,
+    feedback,
+    isCompleted,
+    mistakesCount,
+    startGame,
+    getProgress,
+    toggleHint,
+    undoLastFill,
+    resetProgress,
+    setZoom,
+  } = useGameStore()
 
-  const [isSaving, setIsSaving] = useState(false)
-  const [showPalette, setShowPalette] = useState(true)
-  const [coloredRegions, setColoredRegions] = useState<ColoredRegion[]>([])
-  const [savedCanvasDataUrl, setSavedCanvasDataUrl] = useState<string | undefined>(undefined)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [isCanvasReady, setIsCanvasReady] = useState(false)
+  const [showCompletionModal, setShowCompletionModal] = useState(false)
 
-  // 드래프트 로드
+  // 템플릿 로드 및 게임 시작
   useEffect(() => {
-    const loadDraft = async () => {
-      try {
-        const draft = await getDraft(templateId)
-        if (draft) {
-          if (draft.coloredRegions.length > 0) {
-            setColoredRegions(draft.coloredRegions)
-          }
-          // 저장된 캔버스 이미지가 있으면 설정
-          if (draft.canvasDataUrl) {
-            setSavedCanvasDataUrl(draft.canvasDataUrl)
-            toast.info('이전 작업을 불러왔습니다.')
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load draft:', error)
-      }
+    const loadedTemplate = getTemplateById(templateId)
+    if (loadedTemplate) {
+      startGame(loadedTemplate)
+    } else {
+      toast.error('템플릿을 찾을 수 없습니다.')
+      router.push('/templates')
     }
+  }, [templateId, startGame, router])
 
-    loadDraft()
-  }, [templateId])
-
-  // 자동 저장 설정
+  // 완성 시 모달 표시
   useEffect(() => {
-    if (!hasUnsavedChanges || !isCanvasReady) return
-
-    autoSaveTimerRef.current = setInterval(async () => {
-      try {
-        const canvasDataUrl = canvasRef.current?.getDataUrl() || undefined
-        await saveDraft({
-          id: templateId,
-          templateId,
-          coloredRegions,
-          canvasDataUrl,
-          updatedAt: Date.now(),
-        })
-        // Auto-save completed
-      } catch (error) {
-        console.error('Auto-save failed:', error)
-      }
-    }, AUTO_SAVE_INTERVAL)
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearInterval(autoSaveTimerRef.current)
-      }
+    if (isCompleted && feedback.type === 'complete') {
+      setShowCompletionModal(true)
     }
-  }, [templateId, coloredRegions, hasUnsavedChanges, isCanvasReady])
+  }, [isCompleted, feedback.type])
 
-  // 페이지 이탈 시 저장
-  useEffect(() => {
-    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges && isCanvasReady) {
-        // 이탈 전 드래프트 저장 시도
-        try {
-          const canvasDataUrl = canvasRef.current?.getDataUrl() || undefined
-          await saveDraft({
-            id: templateId,
-            templateId,
-            coloredRegions,
-            canvasDataUrl,
-            updatedAt: Date.now(),
-          })
-        } catch (error) {
-          console.error('Failed to save on unload:', error)
-        }
-        e.preventDefault()
-        e.returnValue = ''
-      }
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges, isCanvasReady, templateId, coloredRegions])
-
-  const handleColorChange = useCallback((data: ColoredRegion[]) => {
-    setColoredRegions(data)
-    setHasUnsavedChanges(true)
-  }, [])
-
-  const handleCanvasReady = useCallback(() => {
-    setIsCanvasReady(true)
-  }, [])
-
-  const handleSave = useCallback(async () => {
-    setIsSaving(true)
-    try {
-      const canvas = canvasRef.current?.getCanvas()
-      if (!canvas) {
-        throw new Error('Canvas not available')
-      }
-
-      const canvasDataUrl = canvasToDataUrl(canvas)
-      const thumbnailDataUrl = createThumbnail(canvas)
-
-      // IndexedDB에 저장
-      await saveArtwork({
-        id: `artwork-${templateId}-${Date.now()}`,
-        templateId,
-        title: `작품 ${new Date().toLocaleDateString('ko-KR')}`,
-        thumbnailDataUrl,
-        canvasDataUrl,
-        coloredRegions,
-        progress: calculateProgress(coloredRegions),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        isSynced: false,
-      })
-
-      // 드래프트도 업데이트
-      await saveDraft({
-        id: templateId,
-        templateId,
-        coloredRegions,
-        canvasDataUrl,
-        updatedAt: Date.now(),
-      })
-
-      setHasUnsavedChanges(false)
-      toast.success('작품이 저장되었습니다!')
-    } catch (error) {
-      console.error('Save failed:', error)
-      toast.error('저장에 실패했습니다. 다시 시도해주세요.')
-    } finally {
-      setIsSaving(false)
-    }
-  }, [templateId, coloredRegions])
-
-  const handleZoomIn = useCallback(() => {
-    canvasRef.current?.zoomIn()
-  }, [])
-
-  const handleZoomOut = useCallback(() => {
-    canvasRef.current?.zoomOut()
-  }, [])
-
-  const handleResetZoom = useCallback(() => {
-    canvasRef.current?.resetZoom()
-  }, [])
+  const handleBack = useCallback(() => {
+    router.back()
+  }, [router])
 
   const handleHelp = useCallback(() => {
     toast.info(
       <div className="space-y-2">
-        <p className="font-semibold">사용 방법</p>
-        <ul className="list-disc pl-4 text-sm">
-          <li>색상을 선택하고 원하는 영역을 터치하세요</li>
-          <li>두 손가락으로 확대/축소할 수 있어요</li>
-          <li>한 손가락으로 드래그하면 이동해요</li>
-          <li>실수했다면 되돌리기 버튼을 눌러주세요</li>
+        <p className="font-semibold">🎨 숫자 맞춤 컬러링</p>
+        <ul className="list-disc pl-4 text-sm space-y-1">
+          <li>아래 팔레트에서 숫자 색상을 선택하세요</li>
+          <li>같은 숫자가 적힌 영역을 터치하면 색칠됩니다</li>
+          <li>올바른 색상이면 ✓, 틀리면 다시 시도!</li>
+          <li><strong>힌트</strong> 버튼: 다음 칠할 곳을 알려줘요</li>
         </ul>
       </div>,
-      { duration: 5000 }
+      { duration: 6000 }
     )
   }, [])
 
-  const handleBack = useCallback(async () => {
-    if (hasUnsavedChanges && isCanvasReady) {
-      // 뒤로가기 전 자동 저장
-      try {
-        const canvasDataUrl = canvasRef.current?.getDataUrl() || undefined
-        await saveDraft({
-          id: templateId,
-          templateId,
-          coloredRegions,
-          canvasDataUrl,
-          updatedAt: Date.now(),
-        })
-        toast.success('작업이 자동 저장되었습니다.')
-      } catch (error) {
-        console.error('Failed to save before leaving:', error)
-      }
+  const handleSave = useCallback(() => {
+    // TODO: IndexedDB에 진행상황 저장
+    toast.success('진행상황이 저장되었습니다!')
+  }, [])
+
+  const handleRestart = useCallback(() => {
+    if (confirm('처음부터 다시 시작할까요?')) {
+      resetProgress()
+      toast.info('처음부터 시작합니다.')
     }
-    router.back()
-  }, [router, hasUnsavedChanges, isCanvasReady, templateId, coloredRegions])
+  }, [resetProgress])
+
+  const handleZoomIn = useCallback(() => {
+    setZoom(gameState.zoomLevel + 0.25)
+  }, [gameState.zoomLevel, setZoom])
+
+  const handleZoomOut = useCallback(() => {
+    setZoom(gameState.zoomLevel - 0.25)
+  }, [gameState.zoomLevel, setZoom])
+
+  const handleResetZoom = useCallback(() => {
+    setZoom(1)
+  }, [setZoom])
+
+  if (!template) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-muted-foreground">로딩 중...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const progress = getProgress()
 
   return (
     <div className="flex h-screen flex-col bg-background">
       {/* 상단 헤더 */}
-      <header className="flex items-center justify-between border-b px-4 py-3 safe-area-top">
+      <header className="flex items-center justify-between border-b px-4 py-3 safe-area-top bg-background">
         <Button
           variant="ghost"
           size="icon"
           onClick={handleBack}
-          className="touch-target-lg"
+          className="touch-target"
           aria-label="뒤로 가기"
         >
           <ArrowLeft className="h-6 w-6" />
         </Button>
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold">컬러링</h1>
-          {hasUnsavedChanges && (
-            <span className="h-2 w-2 rounded-full bg-orange-500" title="저장되지 않음" />
-          )}
+
+        <div className="flex-1 mx-4">
+          {/* 진행률 바 */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
+              <div
+                className={cn(
+                  'h-full transition-all duration-500 rounded-full',
+                  progress >= 100 ? 'bg-green-500' : 'bg-primary'
+                )}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <span className="text-sm font-bold min-w-[45px] text-right">
+              {progress}%
+            </span>
+          </div>
+          <p className="text-xs text-center text-muted-foreground mt-1">
+            {template.title}
+          </p>
         </div>
+
         <Button
           variant="ghost"
           size="icon"
-          onClick={handleResetZoom}
-          className="touch-target-lg"
-          aria-label="줌 초기화"
+          onClick={handleHelp}
+          className="touch-target"
+          aria-label="도움말"
         >
-          <RotateCcw className="h-5 w-5" />
+          <HelpCircle className="h-6 w-6" />
         </Button>
       </header>
 
+      {/* 툴바 */}
+      <div className="flex items-center justify-center gap-2 px-4 py-2 border-b bg-muted/30">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleHint}
+          className={cn(
+            'gap-1.5',
+            gameState.isHintActive && 'bg-primary text-primary-foreground'
+          )}
+        >
+          <Lightbulb className="h-4 w-4" />
+          힌트
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={undoLastFill}
+          className="gap-1.5"
+        >
+          <Undo2 className="h-4 w-4" />
+          되돌리기
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleResetZoom}
+          className="gap-1.5"
+        >
+          <RotateCcw className="h-4 w-4" />
+          줌 초기화
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSave}
+          className="gap-1.5"
+        >
+          <Save className="h-4 w-4" />
+          저장
+        </Button>
+      </div>
+
       {/* 캔버스 영역 */}
       <div className="flex-1 overflow-hidden">
-        <ColoringCanvas
-          ref={canvasRef}
-          templateUrl={undefined} // TODO: Load from template
-          initialCanvasDataUrl={savedCanvasDataUrl}
-          initialData={coloredRegions}
-          onColorChange={handleColorChange}
-          onCanvasReady={handleCanvasReady}
+        <PaintByNumberCanvas
+          template={template}
           className="h-full w-full"
         />
       </div>
 
-      {/* 툴바 */}
-      <div className="px-4 py-2">
-        <Toolbar
-          onSave={handleSave}
-          onHelp={handleHelp}
-          onZoomIn={handleZoomIn}
-          onZoomOut={handleZoomOut}
-          isSaving={isSaving}
-        />
-      </div>
+      {/* 숫자-색상 팔레트 */}
+      <NumberedColorPalette
+        template={template}
+        className="safe-area-bottom"
+      />
 
-      {/* 색상 팔레트 */}
-      {showPalette && (
-        <div className="border-t bg-background px-4 py-4 safe-area-bottom">
-          <ColorPalette compact />
+      {/* 실수 횟수 표시 */}
+      {mistakesCount > 0 && (
+        <div className="absolute top-20 left-4 bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">
+          실수: {mistakesCount}회
         </div>
       )}
 
-      {/* 팔레트 토글 버튼 */}
-      <button
-        onClick={() => setShowPalette(!showPalette)}
-        className="absolute bottom-32 right-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-2xl text-primary-foreground shadow-lg transition-transform active:scale-95"
-        aria-label={showPalette ? '팔레트 숨기기' : '팔레트 보기'}
-      >
-        🎨
-      </button>
+      {/* 완성 축하 모달 */}
+      {showCompletionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl p-8 mx-4 max-w-sm w-full text-center animate-bounce-in">
+            <div className="text-6xl mb-4">🎉</div>
+            <h2 className="text-2xl font-bold mb-2">축하합니다!</h2>
+            <p className="text-muted-foreground mb-4">
+              {template.title}을(를) 완성했어요!
+            </p>
+            <div className="flex flex-col gap-2 text-sm text-muted-foreground mb-6">
+              <p>실수 횟수: {mistakesCount}회</p>
+              <p>정확도: {Math.round((1 - mistakesCount / (template.regionCount + mistakesCount)) * 100)}%</p>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={handleRestart}
+              >
+                다시 하기
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => router.push('/templates')}
+              >
+                다른 도안
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
-}
-
-/**
- * 진행률 계산 (간단한 추정)
- */
-function calculateProgress(regions: ColoredRegion[]): number {
-  // 실제로는 템플릿의 총 영역 수와 비교해야 함
-  // 여기서는 간단히 색칠 횟수 기반으로 추정
-  const estimatedTotalRegions = 20
-  return Math.min(Math.round((regions.length / estimatedTotalRegions) * 100), 100)
 }

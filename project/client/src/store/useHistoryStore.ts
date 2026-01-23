@@ -1,31 +1,37 @@
 import { create } from 'zustand'
-import { ColoredRegion, HistoryEntry } from '@/types'
+import { FilledRegion } from '@/types'
+
+// History Entry for Paint by Numbers system
+interface PaintHistoryEntry {
+  filledRegions: Map<string, FilledRegion>
+  timestamp: number
+}
 
 interface HistoryState {
-  past: HistoryEntry[]
-  future: HistoryEntry[]
-  currentData: ColoredRegion[]
+  past: PaintHistoryEntry[]
+  future: PaintHistoryEntry[]
+  currentData: Map<string, FilledRegion>
   maxHistoryLength: number
-  pushHistory: (data: ColoredRegion[]) => void
-  undo: () => ColoredRegion[] | null
-  redo: () => ColoredRegion[] | null
+  pushHistory: (data: Map<string, FilledRegion>) => void
+  undo: () => Map<string, FilledRegion> | null
+  redo: () => Map<string, FilledRegion> | null
   canUndo: () => boolean
   canRedo: () => boolean
   clearHistory: () => void
-  setCurrentData: (data: ColoredRegion[]) => void
+  setCurrentData: (data: Map<string, FilledRegion>) => void
 }
 
 export const useHistoryStore = create<HistoryState>((set, get) => ({
   past: [],
   future: [],
-  currentData: [],
+  currentData: new Map(),
   maxHistoryLength: 50,
 
   pushHistory: (data) => {
     set((state) => {
       const newPast = [
         ...state.past,
-        { coloredData: state.currentData, timestamp: Date.now() },
+        { filledRegions: new Map(state.currentData), timestamp: Date.now() },
       ].slice(-state.maxHistoryLength)
 
       return {
@@ -46,13 +52,13 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     set({
       past: newPast,
       future: [
-        { coloredData: state.currentData, timestamp: Date.now() },
+        { filledRegions: new Map(state.currentData), timestamp: Date.now() },
         ...state.future,
       ],
-      currentData: previous.coloredData,
+      currentData: previous.filledRegions,
     })
 
-    return previous.coloredData
+    return previous.filledRegions
   },
 
   redo: () => {
@@ -65,13 +71,13 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     set({
       past: [
         ...state.past,
-        { coloredData: state.currentData, timestamp: Date.now() },
+        { filledRegions: new Map(state.currentData), timestamp: Date.now() },
       ],
       future: newFuture,
-      currentData: next.coloredData,
+      currentData: next.filledRegions,
     })
 
-    return next.coloredData
+    return next.filledRegions
   },
 
   canUndo: () => get().past.length > 0,
@@ -81,7 +87,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     set({
       past: [],
       future: [],
-      currentData: [],
+      currentData: new Map(),
     })
   },
 

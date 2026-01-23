@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, Type, Eye, Palette, Clock, RotateCcw } from 'lucide-react'
+import { Check, Type, Eye, Palette, Clock, RotateCcw, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSettingsStore } from '@/store/useSettingsStore'
@@ -26,12 +26,14 @@ export default function SettingsPage() {
     fontSize,
     highContrast,
     showColorNames,
-    confirmBeforeColor,
+    autoHideNumbers,
+    soundEnabled,
     autoSaveInterval,
     setFontSize,
     setHighContrast,
     setShowColorNames,
-    setConfirmBeforeColor,
+    setAutoHideNumbers,
+    setSoundEnabled,
     setAutoSaveInterval,
     resetSettings,
   } = useSettingsStore()
@@ -126,12 +128,33 @@ export default function SettingsPage() {
                 onChange={setShowColorNames}
               />
               <ToggleSetting
-                label="색칠 전 확인"
-                description="영역을 터치할 때 색칠할지 확인합니다"
-                checked={confirmBeforeColor}
-                onChange={setConfirmBeforeColor}
+                label="칠한 영역 숫자 숨김"
+                description="올바르게 칠한 영역의 숫자를 자동으로 숨깁니다"
+                checked={autoHideNumbers}
+                onChange={setAutoHideNumbers}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* 소리 설정 */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Volume2 className="h-5 w-5" />
+              소리 설정
+            </CardTitle>
+            <CardDescription>
+              효과음 및 알림음을 설정합니다
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ToggleSetting
+              label="효과음"
+              description="정답/오답 효과음을 재생합니다"
+              checked={soundEnabled}
+              onChange={setSoundEnabled}
+            />
           </CardContent>
         </Card>
 

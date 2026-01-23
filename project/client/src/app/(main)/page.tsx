@@ -3,41 +3,12 @@ import { ArrowRight, Palette, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TemplateCard } from '@/components/templates'
-import { Template } from '@/types'
+import { SAMPLE_TEMPLATES } from '@/data/templates'
 
-// 임시 추천 템플릿 데이터
-const recommendedTemplates: Template[] = [
-  {
-    id: '1',
-    title: '봄 꽃 만다라',
-    categoryId: 'mandala',
-    difficulty: 'easy',
-    imageUrl: '',
-    thumbnailUrl: '',
-    usageCount: 150,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    title: '전통 문양',
-    categoryId: 'traditional',
-    difficulty: 'medium',
-    imageUrl: '',
-    thumbnailUrl: '',
-    usageCount: 120,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    title: '귀여운 고양이',
-    categoryId: 'animals',
-    difficulty: 'easy',
-    imageUrl: '',
-    thumbnailUrl: '',
-    usageCount: 200,
-    createdAt: new Date().toISOString(),
-  },
-]
+// 인기순으로 정렬된 템플릿 (상위 3개)
+const recommendedTemplates = [...SAMPLE_TEMPLATES]
+  .sort((a, b) => b.usageCount - a.usageCount)
+  .slice(0, 3)
 
 export default function HomePage() {
   return (
