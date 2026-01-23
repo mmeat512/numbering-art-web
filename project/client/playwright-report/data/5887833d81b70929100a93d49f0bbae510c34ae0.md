@@ -1,0 +1,65 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - button "뒤로 가기" [ref=e4]:
+        - img
+      - generic [ref=e5]:
+        - generic [ref=e8]: 0%
+        - paragraph [ref=e9]: 맛있는 사과
+      - button "도움말" [ref=e10]:
+        - img
+    - generic [ref=e11]:
+      - button "힌트" [ref=e12]:
+        - img
+        - text: 힌트
+      - button "되돌리기" [ref=e13]:
+        - img
+        - text: 되돌리기
+      - button "줌 초기화" [ref=e14]:
+        - img
+        - text: 줌 초기화
+      - button "저장" [ref=e15]:
+        - img
+        - text: 저장
+    - generic [ref=e17]:
+      - img [ref=e19]:
+        - generic [ref=e20]:
+          - generic: "1"
+        - generic [ref=e22]:
+          - generic: "2"
+        - generic [ref=e24]:
+          - generic: "3"
+        - generic [ref=e26]:
+          - generic: "4"
+        - generic [ref=e28]:
+          - generic: "4"
+        - generic [ref=e30]:
+          - generic: "2"
+      - generic [ref=e34]: 1. 빨강
+    - generic [ref=e35]:
+      - paragraph [ref=e37]: 숫자에 맞는 색상을 선택하세요
+      - generic [ref=e39]:
+        - button "1 빨강 1" [ref=e40]:
+          - generic [ref=e41]: "1"
+          - generic [ref=e42]: 빨강
+          - generic [ref=e43]: "1"
+        - button "2 초록 2" [ref=e44]:
+          - generic [ref=e45]: "2"
+          - generic [ref=e46]: 초록
+          - generic [ref=e47]: "2"
+        - button "3 갈색 1" [ref=e48]:
+          - generic [ref=e49]: "3"
+          - generic [ref=e50]: 갈색
+          - generic [ref=e51]: "1"
+        - button "4 노랑 2" [ref=e52]:
+          - generic [ref=e53]: "4"
+          - generic [ref=e54]: 노랑
+          - generic [ref=e55]: "2"
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e61] [cursor=pointer]:
+    - img [ref=e62]
+  - alert [ref=e65]
+```
