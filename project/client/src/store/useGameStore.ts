@@ -7,11 +7,21 @@ import {
   UserProgress,
   NumberedColor
 } from '@/types'
+import {
+  saveArtwork,
+  getArtwork,
+  getArtworksByTemplate,
+  LocalArtwork
+} from '@/lib/db/indexedDB'
 
 interface GameStore {
   // 현재 템플릿
   template: Template | null
   setTemplate: (template: Template | null) => void
+
+  // 현재 작품 ID (저장된 작품 불러올 때 사용)
+  currentArtworkId: string | null
+  setCurrentArtworkId: (id: string | null) => void
 
   // 게임 상태
   gameState: GameState
@@ -39,6 +49,11 @@ interface GameStore {
   startTime: number | null
   isCompleted: boolean
 
+  // 저장 관련
+  isDirty: boolean // 저장되지 않은 변경사항 여부
+  lastSavedAt: number | null
+  setDirty: (dirty: boolean) => void
+
   // 계산된 값
   getProgress: () => number
   getRemainingCount: (colorNumber: number) => number
@@ -48,6 +63,11 @@ interface GameStore {
   // 게임 시작/종료
   startGame: (template: Template) => void
   completeGame: () => void
+
+  // 저장/불러오기
+  saveProgress: () => Promise<string | null>
+  loadProgress: (artworkId: string) => Promise<boolean>
+  loadProgressByTemplate: (templateId: string) => Promise<boolean>
 }
 
 const initialGameState: GameState = {
@@ -70,6 +90,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
   // 템플릿
   template: null,
   setTemplate: (template) => set({ template }),
+
+  // 현재 작품 ID
+  currentArtworkId: null,
+  setCurrentArtworkId: (id) => set({ currentArtworkId: id }),
 
   // 게임 상태
   gameState: initialGameState,
@@ -126,6 +150,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
             filledRegions: newMap,
             mistakesCount: newMistakes,
             isCompleted: true,
+            isDirty: true, // 변경사항 표시
             feedback: {
               type: 'complete' as const,
               regionId: null,
@@ -138,6 +163,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       return {
         filledRegions: newMap,
         mistakesCount: newMistakes,
+        isDirty: true, // 변경사항 표시
         feedback: {
           type: isCorrect ? 'correct' : 'incorrect',
           regionId,
@@ -168,7 +194,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       const newMap = new Map(state.filledRegions)
       newMap.delete(lastRegionId)
 
-      return { filledRegions: newMap }
+      return { filledRegions: newMap, isDirty: true }
     })
   },
   resetProgress: () => set({
@@ -187,6 +213,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   mistakesCount: 0,
   startTime: null,
   isCompleted: false,
+
+  // 저장 관련
+  isDirty: false,
+  lastSavedAt: null,
+  setDirty: (dirty) => set({ isDirty: dirty }),
 
   // 계산된 값
   getProgress: () => {
@@ -236,6 +267,103 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
   completeGame: () => {
     set({ isCompleted: true })
+  },
+
+  // 저장하기
+  saveProgress: async () => {
+    const { template, filledRegions, mistakesCount, isCompleted, currentArtworkId, getProgress } = get()
+    if (!template) return null
+
+    const progress = getProgress()
+    const now = Date.now()
+
+    // 작품 ID 생성 또는 기존 ID 사용
+    const artworkId = currentArtworkId || `artwork_${template.id}_${now}`
+
+    // FilledRegion Map을 배열로 변환하여 저장
+    const filledRegionsArray = Array.from(filledRegions.values())
+
+    // ColoredRegion 형식으로 변환 (IndexedDB 호환)
+    const coloredRegions = filledRegionsArray.map(fr => ({
+      x: 0, // 레거시 호환
+      y: 0,
+      color: fr.regionId, // regionId를 저장
+      timestamp: fr.filledAt,
+    }))
+
+    const artwork: LocalArtwork = {
+      id: artworkId,
+      templateId: template.id,
+      title: template.title,
+      coloredRegions,
+      progress,
+      createdAt: currentArtworkId ? now : now, // 새 작품이면 현재시간
+      updatedAt: now,
+      isSynced: false,
+      // filledRegions 원본 데이터도 저장 (확장 필드로)
+      ...({ _filledRegions: filledRegionsArray, _mistakesCount: mistakesCount } as Record<string, unknown>),
+    }
+
+    try {
+      await saveArtwork(artwork)
+      set({
+        currentArtworkId: artworkId,
+        isDirty: false,
+        lastSavedAt: now,
+      })
+      return artworkId
+    } catch (error) {
+      console.error('Failed to save artwork:', error)
+      return null
+    }
+  },
+
+  // 특정 작품 불러오기
+  loadProgress: async (artworkId: string) => {
+    try {
+      const artwork = await getArtwork(artworkId)
+      if (!artwork) return false
+
+      // 저장된 filledRegions 복원
+      const savedFilledRegions = (artwork as unknown as { _filledRegions?: FilledRegion[] })._filledRegions
+      const savedMistakesCount = (artwork as unknown as { _mistakesCount?: number })._mistakesCount
+
+      if (savedFilledRegions) {
+        const newMap = new Map<string, FilledRegion>()
+        savedFilledRegions.forEach(fr => {
+          newMap.set(fr.regionId, fr)
+        })
+
+        set({
+          currentArtworkId: artworkId,
+          filledRegions: newMap,
+          mistakesCount: savedMistakesCount || 0,
+          isCompleted: artwork.progress >= 100,
+          isDirty: false,
+          lastSavedAt: artwork.updatedAt,
+        })
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Failed to load artwork:', error)
+      return false
+    }
+  },
+
+  // 템플릿 ID로 가장 최근 작품 불러오기
+  loadProgressByTemplate: async (templateId: string) => {
+    try {
+      const artworks = await getArtworksByTemplate(templateId)
+      if (artworks.length === 0) return false
+
+      // 가장 최근 작품 선택
+      const latestArtwork = artworks.sort((a, b) => b.updatedAt - a.updatedAt)[0]
+      return get().loadProgress(latestArtwork.id)
+    } catch (error) {
+      console.error('Failed to load artwork by template:', error)
+      return false
+    }
   },
 }))
 

@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useCallback, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Lightbulb, RotateCcw, Undo2, Save, HelpCircle } from 'lucide-react'
+import { useEffect, useCallback, useState, useRef } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { ArrowLeft, Lightbulb, RotateCcw, Undo2, Save, HelpCircle, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { PaintByNumberCanvas } from '@/components/canvas/PaintByNumberCanvas'
@@ -14,7 +14,9 @@ import { cn } from '@/lib/utils'
 export default function ColoringPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const templateId = params.templateId as string
+  const artworkIdFromUrl = searchParams.get('artworkId')
 
   const {
     template,
@@ -22,37 +24,112 @@ export default function ColoringPage() {
     feedback,
     isCompleted,
     mistakesCount,
+    isDirty,
     startGame,
     getProgress,
     toggleHint,
     undoLastFill,
     resetProgress,
     setZoom,
+    saveProgress,
+    loadProgress,
+    loadProgressByTemplate,
   } = useGameStore()
 
   const [showCompletionModal, setShowCompletionModal] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const isInitializedRef = useRef(false)
 
   // 템플릿 로드 및 게임 시작
   useEffect(() => {
-    const loadedTemplate = getTemplateById(templateId)
-    if (loadedTemplate) {
-      startGame(loadedTemplate)
-    } else {
-      toast.error('템플릿을 찾을 수 없습니다.')
-      router.push('/templates')
-    }
-  }, [templateId, startGame, router])
+    const initGame = async () => {
+      if (isInitializedRef.current) return
+      isInitializedRef.current = true
 
-  // 완성 시 모달 표시
+      const loadedTemplate = getTemplateById(templateId)
+      if (!loadedTemplate) {
+        toast.error('템플릿을 찾을 수 없습니다.')
+        router.push('/templates')
+        return
+      }
+
+      // 게임 초기화
+      startGame(loadedTemplate)
+
+      // 저장된 진행상황 불러오기
+      if (artworkIdFromUrl) {
+        // URL에 artworkId가 있으면 해당 작품 불러오기
+        const loaded = await loadProgress(artworkIdFromUrl)
+        if (loaded) {
+          toast.success('저장된 작품을 불러왔어요!')
+        }
+      } else {
+        // 없으면 이 템플릿의 가장 최근 작품 확인
+        const hasExisting = await loadProgressByTemplate(templateId)
+        if (hasExisting) {
+          toast.info('이전 진행상황을 불러왔어요!')
+        }
+      }
+    }
+
+    initGame()
+
+    // 언마운트 시 초기화 플래그 리셋
+    return () => {
+      isInitializedRef.current = false
+    }
+  }, [templateId, artworkIdFromUrl, startGame, loadProgress, loadProgressByTemplate, router])
+
+  // 완성 시 모달 표시 및 자동 저장
   useEffect(() => {
     if (isCompleted && feedback.type === 'complete') {
       setShowCompletionModal(true)
+      // 완성 시 자동 저장
+      saveProgress()
     }
-  }, [isCompleted, feedback.type])
+  }, [isCompleted, feedback.type, saveProgress])
 
-  const handleBack = useCallback(() => {
+  // 자동 저장 (30초마다 변경사항이 있으면 저장)
+  useEffect(() => {
+    if (isDirty && !isCompleted) {
+      autoSaveTimerRef.current = setTimeout(async () => {
+        await saveProgress()
+        toast.success('자동 저장되었어요', { duration: 2000 })
+      }, 30000) // 30초
+    }
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current)
+      }
+    }
+  }, [isDirty, isCompleted, saveProgress])
+
+  // 페이지 이탈 시 경고 (미저장 변경사항 있을 때)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault()
+        e.returnValue = '저장하지 않은 작업이 있어요. 정말 나가시겠어요?'
+        return e.returnValue
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isDirty])
+
+  const handleBack = useCallback(async () => {
+    if (isDirty) {
+      const shouldSave = confirm('저장하지 않은 작업이 있어요.\n저장하고 나갈까요?')
+      if (shouldSave) {
+        await saveProgress()
+        toast.success('저장되었어요!')
+      }
+    }
     router.back()
-  }, [router])
+  }, [isDirty, saveProgress, router])
 
   const handleHelp = useCallback(() => {
     toast.info(
@@ -63,16 +140,31 @@ export default function ColoringPage() {
           <li>같은 숫자가 적힌 영역을 터치하면 색칠됩니다</li>
           <li>올바른 색상이면 ✓, 틀리면 다시 시도!</li>
           <li><strong>힌트</strong> 버튼: 다음 칠할 곳을 알려줘요</li>
+          <li><strong>저장</strong> 버튼: 내 작품에 저장해요</li>
         </ul>
       </div>,
-      { duration: 6000 }
+      { duration: 8000 }
     )
   }, [])
 
-  const handleSave = useCallback(() => {
-    // TODO: IndexedDB에 진행상황 저장
-    toast.success('진행상황이 저장되었습니다!')
-  }, [])
+  const handleSave = useCallback(async () => {
+    setIsSaving(true)
+    try {
+      const artworkId = await saveProgress()
+      if (artworkId) {
+        toast.success('내 작품에 저장되었어요!', {
+          description: '내 작품 메뉴에서 이어서 할 수 있어요',
+          duration: 3000,
+        })
+      } else {
+        toast.error('저장에 실패했어요. 다시 시도해주세요.')
+      }
+    } catch {
+      toast.error('저장에 실패했어요.')
+    } finally {
+      setIsSaving(false)
+    }
+  }, [saveProgress])
 
   const handleRestart = useCallback(() => {
     if (confirm('처음부터 다시 시작할까요?')) {
@@ -180,10 +272,15 @@ export default function ColoringPage() {
           variant="outline"
           size="sm"
           onClick={handleSave}
+          disabled={isSaving}
           className="gap-1.5"
         >
-          <Save className="h-4 w-4" />
-          저장
+          {isSaving ? (
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
+          {isSaving ? '저장 중...' : '저장'}
         </Button>
       </div>
 
