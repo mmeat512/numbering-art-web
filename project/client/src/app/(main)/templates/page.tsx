@@ -1,13 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search } from 'lucide-react'
 import { TemplateCard, CategoryFilter } from '@/components/templates'
 import { CATEGORIES, SAMPLE_TEMPLATES } from '@/data/templates'
+import { getCompletedTemplateIds, getArtworksByTemplate, LocalArtwork } from '@/lib/db/indexedDB'
+import { FilledRegion } from '@/types'
 
 export default function TemplatesPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [completedTemplates, setCompletedTemplates] = useState<Set<string>>(new Set())
+  const [completedArtworks, setCompletedArtworks] = useState<Map<string, Map<string, FilledRegion>>>(new Map())
+
+  // 완료된 템플릿 정보 로드
+  useEffect(() => {
+    const loadCompletedData = async () => {
+      try {
+        const completedIds = await getCompletedTemplateIds()
+        setCompletedTemplates(completedIds)
+
+        // 완료된 템플릿의 색칠 데이터 로드
+        const artworksMap = new Map<string, Map<string, FilledRegion>>()
+        for (const templateId of completedIds) {
+          const artworks = await getArtworksByTemplate(templateId)
+          const completedArtwork = artworks.find(a => a.progress >= 100) as (LocalArtwork & { _filledRegions?: FilledRegion[] }) | undefined
+          if (completedArtwork?._filledRegions) {
+            const filledMap = new Map<string, FilledRegion>()
+            completedArtwork._filledRegions.forEach(fr => filledMap.set(fr.regionId, fr))
+            artworksMap.set(templateId, filledMap)
+          }
+        }
+        setCompletedArtworks(artworksMap)
+      } catch (error) {
+        console.error('Failed to load completed templates:', error)
+      }
+    }
+    loadCompletedData()
+  }, [])
 
   const filteredTemplates = SAMPLE_TEMPLATES.filter((template) => {
     const matchesCategory =
@@ -42,7 +72,12 @@ export default function TemplatesPage() {
       {/* 템플릿 그리드 */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {filteredTemplates.map((template) => (
-          <TemplateCard key={template.id} template={template} />
+          <TemplateCard
+            key={template.id}
+            template={template}
+            isCompleted={completedTemplates.has(template.id)}
+            filledRegions={completedArtworks.get(template.id)}
+          />
         ))}
       </div>
 

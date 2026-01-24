@@ -1,14 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { Palette, Grid3X3, Clock } from 'lucide-react'
+import { Palette, Grid3X3, Clock, CheckCircle2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { Template } from '@/types'
+import { Template, FilledRegion } from '@/types'
 
 interface TemplateCardProps {
   template: Template
   size?: 'sm' | 'md' | 'lg'
+  isCompleted?: boolean
+  filledRegions?: Map<string, FilledRegion>
 }
 
 const difficultyLabels = {
@@ -23,37 +25,61 @@ const sizeClasses = {
   lg: 'w-48',
 }
 
-export function TemplateCard({ template, size = 'md' }: TemplateCardProps) {
+export function TemplateCard({ template, size = 'md', isCompleted = false, filledRegions }: TemplateCardProps) {
   const difficulty = difficultyLabels[template.difficulty]
+
+  // 완료된 경우 색상 가져오기
+  const getRegionColor = (regionId: string, defaultColor: string = 'white'): string => {
+    if (!isCompleted || !filledRegions) return defaultColor
+    const filled = filledRegions.get(regionId)
+    if (filled?.isCorrect) {
+      const colorInfo = template.colorPalette.find(c => c.number === filled.colorNumber)
+      return colorInfo?.hex || defaultColor
+    }
+    return defaultColor
+  }
 
   return (
     <Link href={`/coloring/${template.id}`} className="block">
-      <Card className="overflow-hidden transition-transform hover:scale-105 active:scale-95 touch-target">
+      <Card className={cn(
+        "overflow-hidden transition-transform hover:scale-105 active:scale-95 touch-target",
+        isCompleted && "ring-2 ring-green-500 ring-offset-2"
+      )}>
         <CardContent className="p-0">
           {/* 썸네일 / SVG 미리보기 */}
           <div className={cn('relative aspect-square', sizeClasses[size])}>
-            {template.thumbnailUrl ? (
+            {template.thumbnailUrl && !isCompleted ? (
               <img
                 src={template.thumbnailUrl}
                 alt={template.title}
                 className="h-full w-full object-cover"
               />
             ) : template.templateData ? (
-              // SVG 미리보기 (윤곽선만 표시)
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-2">
+              // SVG 미리보기 (완료 시 색칠된 상태, 미완료 시 윤곽선만)
+              <div className={cn(
+                "flex h-full w-full items-center justify-center p-2",
+                isCompleted
+                  ? "bg-gradient-to-br from-green-50 to-emerald-50"
+                  : "bg-gradient-to-br from-slate-50 to-slate-100"
+              )}>
                 <svg
                   viewBox={template.templateData.viewBox}
                   className="h-full w-full"
                 >
-                  {template.templateData.regions.map((region) => (
-                    <path
-                      key={region.id}
-                      d={region.path}
-                      fill="white"
-                      stroke="#CBD5E1"
-                      strokeWidth="2"
-                    />
-                  ))}
+                  {template.templateData.regions.map((region) => {
+                    const fillColor = isCompleted
+                      ? getRegionColor(region.id, template.colorPalette.find(c => c.number === region.colorNumber)?.hex || 'white')
+                      : 'white'
+                    return (
+                      <path
+                        key={region.id}
+                        d={region.path}
+                        fill={fillColor}
+                        stroke={isCompleted ? "#10B981" : "#CBD5E1"}
+                        strokeWidth={isCompleted ? "1" : "2"}
+                      />
+                    )
+                  })}
                 </svg>
               </div>
             ) : (
@@ -61,6 +87,15 @@ export function TemplateCard({ template, size = 'md' }: TemplateCardProps) {
                 <span className="text-muted-foreground text-sm">이미지 없음</span>
               </div>
             )}
+
+            {/* 완료 배지 */}
+            {isCompleted && (
+              <div className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-green-500 px-2 py-0.5 text-xs font-medium text-white shadow-sm">
+                <CheckCircle2 className="h-3 w-3" />
+                완료
+              </div>
+            )}
+
             {/* 난이도 배지 */}
             <div
               className={cn(

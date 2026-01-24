@@ -160,25 +160,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
         }
       }
 
+      // 정답인 경우 피드백 없이 진행, 오답인 경우에만 피드백 표시
       return {
         filledRegions: newMap,
         mistakesCount: newMistakes,
-        isDirty: true, // 변경사항 표시
-        feedback: {
-          type: isCorrect ? 'correct' : 'incorrect',
+        isDirty: true,
+        feedback: isCorrect ? initialFeedback : {
+          type: 'incorrect' as const,
           regionId,
-          message: isCorrect ? '정답!' : '다시 시도해보세요',
+          message: '다시 시도해보세요',
         },
       }
     })
 
-    // 피드백 자동 클리어
-    setTimeout(() => {
-      const state = get()
-      if (state.feedback.regionId === regionId && state.feedback.type !== 'complete') {
-        set({ feedback: initialFeedback })
-      }
-    }, 1000)
+    // 오답 피드백 자동 클리어
+    if (!isCorrect) {
+      setTimeout(() => {
+        const state = get()
+        if (state.feedback.regionId === regionId && state.feedback.type === 'incorrect') {
+          set({ feedback: initialFeedback })
+        }
+      }, 1000)
+    }
   },
   undoLastFill: () => {
     set((state) => {

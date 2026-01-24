@@ -269,6 +269,31 @@ export function createThumbnail(
 }
 
 /**
+ * 완료된 템플릿 ID 목록 가져오기
+ */
+export async function getCompletedTemplateIds(): Promise<Set<string>> {
+  const db = await getDB()
+  const allArtworks = await db.getAll('artworks')
+  const completedIds = new Set<string>()
+
+  allArtworks.forEach((artwork) => {
+    if (artwork.progress >= 100) {
+      completedIds.add(artwork.templateId)
+    }
+  })
+
+  return completedIds
+}
+
+/**
+ * 특정 템플릿의 완료된 작품 가져오기
+ */
+export async function getCompletedArtwork(templateId: string): Promise<LocalArtwork | undefined> {
+  const artworks = await getArtworksByTemplate(templateId)
+  return artworks.find((a) => a.progress >= 100)
+}
+
+/**
  * 데이터베이스 초기화 (개발용)
  */
 export async function clearAllData(): Promise<void> {

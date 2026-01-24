@@ -322,13 +322,19 @@ export default function ColoringPage() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={handleRestart}
+                onClick={() => {
+                  setShowCompletionModal(false)
+                  handleRestart()
+                }}
               >
                 다시 하기
               </Button>
               <Button
                 className="flex-1"
-                onClick={() => router.push('/templates')}
+                onClick={() => {
+                  setShowCompletionModal(false)
+                  router.push('/templates')
+                }}
               >
                 다른 도안
               </Button>
