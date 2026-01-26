@@ -211,3 +211,64 @@ export const DEFAULT_PALETTE: PaletteColor[] = [
   { id: 'navy', name: 'Navy', nameKo: '네이비', hex: '#1A237E' },
   { id: 'gold', name: 'Gold', nameKo: '금색', hex: '#FFD700' },
 ]
+
+// ============================================
+// 관리자 관련 타입
+// ============================================
+
+// 관리자용 템플릿 (기존 Template 확장)
+export interface AdminTemplate extends Template {
+  description?: string
+  isActive: boolean
+  uploadedImageUrl?: string
+}
+
+// 관리자용 카테고리
+export interface AdminCategory {
+  id: string
+  name: string
+  slug: string
+  description?: string
+  templateCount: number
+  order: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+// 템플릿 폼 데이터
+export interface TemplateFormData {
+  title: string
+  categoryId: string
+  difficulty: 'easy' | 'medium' | 'hard'
+  description?: string
+  colorCount?: number
+  estimatedTime?: number
+}
+
+// 카테고리 폼 데이터
+export interface CategoryFormData {
+  name: string
+  slug: string
+  description?: string
+  order?: number
+}
+
+// 이미지 업로드 결과
+export interface UploadResult {
+  url: string
+  filename: string
+  size: number
+  width: number
+  height: number
+}
+
+// 관리자 통계
+export interface AdminStats {
+  totalTemplates: number
+  activeTemplates: number
+  totalCategories: number
+  recentActivity: number
+  totalUsers?: number
+  completedArtworks?: number
+}

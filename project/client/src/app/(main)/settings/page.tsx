@@ -1,9 +1,12 @@
 'use client'
 
-import { Check, Type, Eye, Palette, Clock, RotateCcw, Volume2 } from 'lucide-react'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Check, Type, Eye, Palette, Clock, RotateCcw, Volume2, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSettingsStore } from '@/store/useSettingsStore'
+import { useAdminStore } from '@/store/useAdminStore'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { UserSettings } from '@/types'
@@ -22,6 +25,11 @@ const AUTO_SAVE_OPTIONS = [
 ]
 
 export default function SettingsPage() {
+  const router = useRouter()
+  const [showAdminModal, setShowAdminModal] = useState(false)
+  const [adminPassword, setAdminPassword] = useState('')
+  const [passwordError, setPasswordError] = useState(false)
+
   const {
     fontSize,
     highContrast,
@@ -38,9 +46,30 @@ export default function SettingsPage() {
     resetSettings,
   } = useSettingsStore()
 
+  const { authenticate } = useAdminStore()
+
   const handleResetSettings = () => {
     resetSettings()
     toast.success('설정이 초기화되었습니다.')
+  }
+
+  const handleAdminLogin = () => {
+    if (authenticate(adminPassword)) {
+      setShowAdminModal(false)
+      setAdminPassword('')
+      setPasswordError(false)
+      toast.success('관리자 모드로 전환합니다.')
+      router.push('/admin')
+    } else {
+      setPasswordError(true)
+      toast.error('비밀번호가 올바르지 않습니다.')
+    }
+  }
+
+  const handleCloseAdminModal = () => {
+    setShowAdminModal(false)
+    setAdminPassword('')
+    setPasswordError(false)
   }
 
   return (
@@ -205,7 +234,84 @@ export default function SettingsPage() {
             </p>
           </CardContent>
         </Card>
+
+        {/* 관리자 페이지 버튼 */}
+        <Card className="border-dashed">
+          <CardContent className="pt-6">
+            <Button
+              variant="outline"
+              onClick={() => setShowAdminModal(true)}
+              className="w-full gap-2"
+            >
+              <Shield className="h-4 w-4" />
+              관리자 페이지로
+            </Button>
+            <p className="mt-2 text-center text-sm text-muted-foreground">
+              관리자 전용 기능에 접근합니다
+            </p>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* 관리자 비밀번호 모달 */}
+      {showAdminModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl p-6 mx-4 max-w-sm w-full shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-primary/10 rounded-full">
+                <Shield className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">관리자 인증</h2>
+                <p className="text-sm text-muted-foreground">비밀번호를 입력해주세요</p>
+              </div>
+            </div>
+
+            <input
+              type="password"
+              value={adminPassword}
+              onChange={(e) => {
+                setAdminPassword(e.target.value)
+                setPasswordError(false)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleAdminLogin()
+                }
+              }}
+              placeholder="비밀번호 입력"
+              className={cn(
+                'w-full px-4 py-3 border-2 rounded-lg text-center text-lg tracking-widest',
+                'focus:outline-none focus:border-primary',
+                passwordError ? 'border-red-500 bg-red-50' : 'border-border'
+              )}
+              autoFocus
+            />
+
+            {passwordError && (
+              <p className="mt-2 text-sm text-red-500 text-center">
+                비밀번호가 올바르지 않습니다
+              </p>
+            )}
+
+            <div className="flex gap-3 mt-6">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={handleCloseAdminModal}
+              >
+                취소
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={handleAdminLogin}
+              >
+                확인
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
