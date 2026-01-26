@@ -24,11 +24,11 @@ export async function PATCH(request: NextRequest) {
 
     const supabase = await createClient()
 
-    // 각 카테고리의 order 업데이트
+    // 각 카테고리의 sort_order 업데이트
     const updates = orderedIds.map((id, index) =>
       supabase
         .from('categories')
-        .update({ order: index })
+        .update({ sort_order: index })
         .eq('id', id)
     )
 

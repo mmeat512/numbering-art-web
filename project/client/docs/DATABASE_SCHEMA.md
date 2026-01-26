@@ -1,5 +1,48 @@
 # Supabase 데이터베이스 스키마
 
+## 필수 설정 (관리자 페이지 사용 전)
+
+### 1. Storage 버킷 생성
+
+Supabase Dashboard > Storage에서 다음 버킷을 생성하세요:
+
+| 버킷명 | Public | 용도 |
+|--------|--------|------|
+| `templates` | Yes | 템플릿 이미지 저장 |
+| `artworks` | Yes | 사용자 완성 작품 |
+| `thumbnails` | Yes | 썸네일 이미지 |
+
+### 2. Storage 정책 (SQL Editor에서 실행)
+
+```sql
+-- templates 버킷 정책 (관리자 업로드 허용)
+CREATE POLICY "Public read for templates"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'templates');
+
+CREATE POLICY "Anyone can upload to templates"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'templates');
+
+CREATE POLICY "Anyone can update templates"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'templates');
+
+CREATE POLICY "Anyone can delete from templates"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'templates');
+```
+
+### 3. 필드명 매핑
+
+| 스키마 (DB) | 코드 (API) | 설명 |
+|-------------|------------|------|
+| `sort_order` | `order` | 카테고리 정렬 순서 |
+| `category_id` | `categoryId` | 템플릿의 카테고리 |
+| `thumbnail_url` | `thumbnailUrl` | 썸네일 URL |
+
+---
+
 ## 개요
 
 Paint by Numbers 관리자 페이지를 위한 Supabase 데이터베이스 테이블 정의입니다.

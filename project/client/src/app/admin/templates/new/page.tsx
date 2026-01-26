@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Upload } from 'lucide-react'
+import { ArrowLeft, Upload, Sparkles, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
@@ -14,8 +14,26 @@ interface Category {
   slug: string
 }
 
+interface GeneratedColor {
+  index: number
+  hex: string
+  percentage: number
+}
+
+interface GenerationResult {
+  width: number
+  height: number
+  colorCount: number
+  colors: GeneratedColor[]
+  regionCount: number
+  previewImage: string
+}
+
+type TabType = 'manual' | 'ai'
+
 export default function NewTemplatePage() {
   const router = useRouter()
+  const [activeTab, setActiveTab] = useState<TabType>('manual')
   const [categories, setCategories] = useState<Category[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [formData, setFormData] = useState({
@@ -26,6 +44,12 @@ export default function NewTemplatePage() {
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string>('')
+
+  // AI 생성 관련 상태
+  const [aiColorCount, setAiColorCount] = useState(10)
+  const [aiSmoothing, setAiSmoothing] = useState(0.3)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null)
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -50,6 +74,42 @@ export default function NewTemplatePage() {
       setImageFile(file)
       const url = URL.createObjectURL(file)
       setPreviewUrl(url)
+      setGenerationResult(null)
+    }
+  }
+
+  const handleGenerate = async () => {
+    if (!imageFile) {
+      toast.error('이미지를 먼저 업로드해주세요.')
+      return
+    }
+
+    setIsGenerating(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', imageFile)
+      formData.append('colorCount', aiColorCount.toString())
+      formData.append('difficulty', 'medium')
+      formData.append('smoothing', aiSmoothing.toString())
+
+      const response = await fetch('/api/admin/templates/generate', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || '생성에 실패했습니다.')
+      }
+
+      const data = await response.json()
+      setGenerationResult(data.data)
+      toast.success('템플릿이 생성되었습니다!')
+    } catch (error) {
+      console.error('Generation error:', error)
+      toast.error(error instanceof Error ? error.message : '템플릿 생성에 실패했습니다.')
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -92,6 +152,8 @@ export default function NewTemplatePage() {
         body: JSON.stringify({
           ...formData,
           thumbnailUrl: uploadData.url,
+          colorCount: generationResult?.colorCount,
+          regionCount: generationResult?.regionCount,
         }),
       })
 
@@ -123,6 +185,34 @@ export default function NewTemplatePage() {
         <p className="text-muted-foreground mt-2">
           새로운 컬러링 템플릿을 등록합니다
         </p>
+      </div>
+
+      {/* 탭 */}
+      <div className="mb-6 flex gap-2 border-b">
+        <button
+          type="button"
+          onClick={() => setActiveTab('manual')}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === 'manual'
+              ? 'border-b-2 border-primary text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Upload className="inline-block mr-2 h-4 w-4" />
+          수동 업로드
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('ai')}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === 'ai'
+              ? 'border-b-2 border-primary text-primary'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Sparkles className="inline-block mr-2 h-4 w-4" />
+          AI 생성
+        </button>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -231,15 +321,85 @@ export default function NewTemplatePage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* AI 설정 (AI 탭일 때만 표시) */}
+            {activeTab === 'ai' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>AI 생성 설정</CardTitle>
+                  <CardDescription>색상 추출 및 영역 분할 옵션</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* 색상 수 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      색상 수: {aiColorCount}개
+                    </label>
+                    <input
+                      type="range"
+                      min="5"
+                      max="30"
+                      value={aiColorCount}
+                      onChange={(e) => setAiColorCount(parseInt(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>5 (쉬움)</span>
+                      <span>30 (어려움)</span>
+                    </div>
+                  </div>
+
+                  {/* 스무딩 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      영역 부드러움: {Math.round(aiSmoothing * 100)}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={aiSmoothing * 100}
+                      onChange={(e) => setAiSmoothing(parseInt(e.target.value) / 100)}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>선명함</span>
+                      <span>부드러움</span>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={handleGenerate}
+                    disabled={!imageFile || isGenerating}
+                    className="w-full"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        생성 중...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        템플릿 생성
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
-          {/* 오른쪽: 이미지 업로드 */}
+          {/* 오른쪽: 이미지 업로드 / 미리보기 */}
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>이미지 업로드</CardTitle>
+                <CardTitle>
+                  {activeTab === 'manual' ? '이미지 업로드' : '원본 이미지'}
+                </CardTitle>
                 <CardDescription>
-                  PNG 또는 JPG 파일 (최대 5MB)
+                  PNG 또는 JPG 파일 (최대 {activeTab === 'ai' ? '10' : '5'}MB)
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -281,6 +441,52 @@ export default function NewTemplatePage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* AI 생성 결과 미리보기 */}
+            {activeTab === 'ai' && generationResult && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>생성 결과</CardTitle>
+                  <CardDescription>
+                    {generationResult.colorCount}색, {generationResult.regionCount}개 영역
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* 미리보기 이미지 */}
+                  <div className="rounded-lg overflow-hidden border">
+                    <img
+                      src={generationResult.previewImage}
+                      alt="Generated preview"
+                      className="w-full"
+                    />
+                  </div>
+
+                  {/* 색상 팔레트 */}
+                  <div>
+                    <p className="text-sm font-medium mb-2">색상 팔레트</p>
+                    <div className="flex flex-wrap gap-2">
+                      {generationResult.colors.map((color) => (
+                        <div
+                          key={color.index}
+                          className="flex items-center gap-2 rounded-lg border px-2 py-1"
+                        >
+                          <div
+                            className="w-6 h-6 rounded border"
+                            style={{ backgroundColor: color.hex }}
+                          />
+                          <span className="text-xs font-mono">
+                            {color.index}. {color.hex}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            ({color.percentage}%)
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
 
