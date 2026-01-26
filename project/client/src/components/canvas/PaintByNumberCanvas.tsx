@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { useGameStore, useSelectedColorInfo } from '@/store/useGameStore'
 import { Template, Region } from '@/types'
@@ -8,6 +8,132 @@ import { Template, Region } from '@/types'
 interface PaintByNumberCanvasProps {
   template: Template
   className?: string
+}
+
+// SVG path에서 영역 특성을 분석하는 함수
+interface PathAnalysis {
+  boundingBox: { width: number; height: number; area: number }
+  pathComplexity: number  // path 포인트 수
+  estimatedThickness: number  // 추정 두께 (링 형태 감지용)
+  isRingShape: boolean  // 링/띠 형태 여부
+}
+
+function analyzePathData(pathData: string): PathAnalysis {
+  // path 데이터에서 숫자만 추출
+  const numbers = pathData.match(/-?\d+\.?\d*/g)
+  if (!numbers || numbers.length < 4) {
+    return {
+      boundingBox: { width: 50, height: 50, area: 2500 },
+      pathComplexity: 0,
+      estimatedThickness: 50,
+      isRingShape: false,
+    }
+  }
+
+  const coords: number[] = numbers.map(Number)
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+
+  // 바운딩 박스 계산
+  for (let i = 0; i < coords.length - 1; i += 2) {
+    const x = coords[i]
+    const y = coords[i + 1]
+
+    if (!isNaN(x) && !isNaN(y)) {
+      minX = Math.min(minX, x)
+      maxX = Math.max(maxX, x)
+      minY = Math.min(minY, y)
+      maxY = Math.max(maxY, y)
+    }
+  }
+
+  const width = maxX - minX
+  const height = maxY - minY
+  const boundingBoxArea = width * height
+
+  // path 복잡도 (포인트 수)
+  const pathComplexity = coords.length / 2
+
+  // path 둘레 추정 (연속된 점들 간의 거리 합)
+  let estimatedPerimeter = 0
+  for (let i = 0; i < coords.length - 3; i += 2) {
+    const x1 = coords[i]
+    const y1 = coords[i + 1]
+    const x2 = coords[i + 2]
+    const y2 = coords[i + 3]
+
+    if (!isNaN(x1) && !isNaN(y1) && !isNaN(x2) && !isNaN(y2)) {
+      estimatedPerimeter += Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    }
+  }
+
+  // 링/띠 형태 감지: 둘레가 길고 면적이 작은 경우
+  // 원형의 경우: 둘레 = 2*π*r, 면적 = π*r^2 → 둘레^2/면적 = 4*π ≈ 12.57
+  // 띠 형태는 이 비율이 훨씬 높음 (둘레가 면적에 비해 큼)
+  const perimeterToAreaRatio = boundingBoxArea > 0
+    ? (estimatedPerimeter * estimatedPerimeter) / boundingBoxArea
+    : 0
+
+  // 링 형태 감지: 복잡한 path(많은 포인트)가 큰 바운딩박스를 가지는 경우
+  // 또는 둘레 대비 면적 비율이 높은 경우
+  const complexityPerArea = boundingBoxArea > 0 ? pathComplexity / Math.sqrt(boundingBoxArea) : 0
+  const isRingShape = perimeterToAreaRatio > 50 || complexityPerArea > 0.5
+
+  // 추정 두께: 바운딩박스 면적을 둘레로 나눔 (링 형태의 경우 실제 띠 두께 추정)
+  const estimatedThickness = estimatedPerimeter > 0
+    ? Math.min(width, height, boundingBoxArea / estimatedPerimeter * 2)
+    : Math.min(width, height)
+
+  return {
+    boundingBox: { width, height, area: boundingBoxArea },
+    pathComplexity,
+    estimatedThickness,
+    isRingShape,
+  }
+}
+
+// 영역 크기에 따른 폰트 크기 계산
+function calculateFontSize(pathData: string, viewBox: string): number {
+  const analysis = analyzePathData(pathData)
+  const { boundingBox, estimatedThickness, isRingShape } = analysis
+
+  // viewBox에서 전체 크기 파싱
+  const viewBoxParts = viewBox.split(' ').map(Number)
+  const viewBoxWidth = viewBoxParts[2] || 400
+  const viewBoxHeight = viewBoxParts[3] || 400
+
+  // 최소/최대 폰트 크기 (viewBox 기준)
+  const MIN_FONT_SIZE = 6
+  const MAX_FONT_SIZE = 16
+
+  // 링/띠 형태인 경우 추정 두께를 기준으로 폰트 크기 결정
+  if (isRingShape) {
+    // 두께의 60%를 최대 폰트 크기로 설정 (여백 확보)
+    const maxFontByThickness = estimatedThickness * 0.6
+
+    if (maxFontByThickness < 8) return MIN_FONT_SIZE
+    if (maxFontByThickness < 10) return 7
+    if (maxFontByThickness < 14) return 8
+    if (maxFontByThickness < 18) return 10
+    if (maxFontByThickness < 24) return 12
+    return Math.min(14, MAX_FONT_SIZE)
+  }
+
+  // 일반 영역: 최소 차원 기준으로 폰트 크기 결정
+  const minDimension = Math.min(boundingBox.width, boundingBox.height)
+
+  // viewBox 대비 상대적 크기
+  const relativeDimension = minDimension / Math.min(viewBoxWidth, viewBoxHeight)
+
+  if (relativeDimension < 0.05 || minDimension < 15) return MIN_FONT_SIZE
+  if (relativeDimension < 0.08 || minDimension < 25) return 8
+  if (relativeDimension < 0.12 || minDimension < 35) return 10
+  if (relativeDimension < 0.18 || minDimension < 50) return 12
+  if (relativeDimension < 0.25 || minDimension < 70) return 14
+
+  return MAX_FONT_SIZE
 }
 
 export function PaintByNumberCanvas({ template, className }: PaintByNumberCanvasProps) {
@@ -28,6 +154,19 @@ export function PaintByNumberCanvas({ template, className }: PaintByNumberCanvas
   } = useGameStore()
 
   const selectedColorInfo = useSelectedColorInfo()
+
+  // 각 영역의 폰트 크기를 미리 계산 (메모이제이션)
+  const regionFontSizes = useMemo(() => {
+    const sizes = new Map<string, number>()
+    const viewBox = template.templateData.viewBox
+
+    template.templateData.regions.forEach((region) => {
+      const fontSize = calculateFontSize(region.path, viewBox)
+      sizes.set(region.id, fontSize)
+    })
+
+    return sizes
+  }, [template.templateData.regions, template.templateData.viewBox])
 
   // 컨테이너 크기 감지
   useEffect(() => {
@@ -161,7 +300,7 @@ export function PaintByNumberCanvas({ template, className }: PaintByNumberCanvas
                   y={region.labelY}
                   textAnchor="middle"
                   dominantBaseline="central"
-                  fontSize="14"
+                  fontSize={regionFontSizes.get(region.id) || 14}
                   fontWeight="bold"
                   fill="#333333"
                   className="pointer-events-none select-none"

@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback, useState, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeft, Lightbulb, RotateCcw, Undo2, Save, HelpCircle, Check } from 'lucide-react'
+import { ArrowLeft, Lightbulb, RotateCcw, Undo2, Save, HelpCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { PaintByNumberCanvas } from '@/components/canvas/PaintByNumberCanvas'
@@ -40,6 +40,15 @@ export default function ColoringPage() {
   const [isSaving, setIsSaving] = useState(false)
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isInitializedRef = useRef(false)
+  const prevTemplateIdRef = useRef<string | null>(null)
+
+  // 템플릿이 변경되면 모달 닫기
+  useEffect(() => {
+    if (prevTemplateIdRef.current && prevTemplateIdRef.current !== templateId) {
+      setShowCompletionModal(false)
+    }
+    prevTemplateIdRef.current = templateId
+  }, [templateId])
 
   // 템플릿 로드 및 게임 시작
   useEffect(() => {
@@ -57,19 +66,11 @@ export default function ColoringPage() {
       // 게임 초기화
       startGame(loadedTemplate)
 
-      // 저장된 진행상황 불러오기
+      // 저장된 진행상황 불러오기 (toast 없이)
       if (artworkIdFromUrl) {
-        // URL에 artworkId가 있으면 해당 작품 불러오기
-        const loaded = await loadProgress(artworkIdFromUrl)
-        if (loaded) {
-          toast.success('저장된 작품을 불러왔어요!')
-        }
+        await loadProgress(artworkIdFromUrl)
       } else {
-        // 없으면 이 템플릿의 가장 최근 작품 확인
-        const hasExisting = await loadProgressByTemplate(templateId)
-        if (hasExisting) {
-          toast.info('이전 진행상황을 불러왔어요!')
-        }
+        await loadProgressByTemplate(templateId)
       }
     }
 
@@ -95,7 +96,6 @@ export default function ColoringPage() {
     if (isDirty && !isCompleted) {
       autoSaveTimerRef.current = setTimeout(async () => {
         await saveProgress()
-        toast.success('자동 저장되었어요', { duration: 2000 })
       }, 30000) // 30초
     }
 
@@ -106,27 +106,23 @@ export default function ColoringPage() {
     }
   }, [isDirty, isCompleted, saveProgress])
 
-  // 페이지 이탈 시 경고 (미저장 변경사항 있을 때)
+  // 페이지 이탈 시 자동 저장 (경고 없이)
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = () => {
       if (isDirty) {
-        e.preventDefault()
-        e.returnValue = '저장하지 않은 작업이 있어요. 정말 나가시겠어요?'
-        return e.returnValue
+        // 비동기 저장 시도 (보장되지 않음)
+        saveProgress()
       }
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [isDirty])
+  }, [isDirty, saveProgress])
 
   const handleBack = useCallback(async () => {
+    // 미저장 변경사항이 있으면 자동 저장 후 이동
     if (isDirty) {
-      const shouldSave = confirm('저장하지 않은 작업이 있어요.\n저장하고 나갈까요?')
-      if (shouldSave) {
-        await saveProgress()
-        toast.success('저장되었어요!')
-      }
+      await saveProgress()
     }
     router.back()
   }, [isDirty, saveProgress, router])
@@ -166,11 +162,9 @@ export default function ColoringPage() {
     }
   }, [saveProgress])
 
+  // 다시하기 - confirm 없이 바로 실행
   const handleRestart = useCallback(() => {
-    if (confirm('처음부터 다시 시작할까요?')) {
-      resetProgress()
-      toast.info('처음부터 시작합니다.')
-    }
+    resetProgress()
   }, [resetProgress])
 
   const handleResetZoom = useCallback(() => {
