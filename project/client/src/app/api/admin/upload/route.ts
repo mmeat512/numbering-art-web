@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const fileExt = file.name.split('.').pop()
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
-    const filePath = `templates/${fileName}`
+    const filePath = fileName
 
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)

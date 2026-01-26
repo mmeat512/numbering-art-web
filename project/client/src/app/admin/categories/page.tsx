@@ -6,10 +6,103 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import type { AdminCategory } from '@/types'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
+interface SortableRowProps {
+  category: AdminCategory
+  onEdit: (category: AdminCategory) => void
+  onDelete: (id: string, name: string, templateCount: number) => void
+}
+
+function SortableRow({ category, onEdit, onDelete }: SortableRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: category.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    backgroundColor: isDragging ? 'rgb(243 244 246)' : undefined,
+  }
+
+  return (
+    <tr ref={setNodeRef} style={style} className="border-b last:border-0">
+      <td className="py-4">
+        <button
+          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-5 w-5" />
+        </button>
+      </td>
+      <td className="py-4 font-medium">{category.name}</td>
+      <td className="py-4 text-muted-foreground font-mono text-sm">
+        {category.slug}
+      </td>
+      <td className="py-4 text-muted-foreground max-w-md truncate">
+        {category.description || '-'}
+      </td>
+      <td className="py-4 text-muted-foreground">
+        {category.templateCount}개
+      </td>
+      <td className="py-4">
+        <div className="flex justify-end gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onEdit(category)}
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              onDelete(category.id, category.name, category.templateCount)
+            }
+            disabled={category.templateCount > 0}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </td>
+    </tr>
+  )
+}
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<AdminCategory[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   useEffect(() => {
     fetchCategories()
@@ -20,7 +113,10 @@ export default function CategoriesPage() {
       const response = await fetch('/api/admin/categories')
       if (response.ok) {
         const data = await response.json()
-        setCategories(data.data)
+        const sortedCategories = (data.data || []).sort(
+          (a: AdminCategory, b: AdminCategory) => a.order - b.order
+        )
+        setCategories(sortedCategories)
       } else {
         toast.error('카테고리를 불러올 수 없습니다.')
       }
@@ -32,15 +128,53 @@ export default function CategoriesPage() {
     }
   }
 
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (!over || active.id === over.id) {
+      return
+    }
+
+    const oldIndex = categories.findIndex((cat) => cat.id === active.id)
+    const newIndex = categories.findIndex((cat) => cat.id === over.id)
+
+    const newCategories = arrayMove(categories, oldIndex, newIndex)
+    setCategories(newCategories)
+
+    // API 호출
+    try {
+      const orderedIds = newCategories.map((cat) => cat.id)
+      const response = await fetch('/api/admin/categories/reorder', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderedIds }),
+      })
+
+      if (response.ok) {
+        toast.success('카테고리 순서가 변경되었습니다.')
+      } else {
+        // 실패 시 롤백
+        fetchCategories()
+        toast.error('순서 변경에 실패했습니다.')
+      }
+    } catch (error) {
+      console.error('Reorder error:', error)
+      fetchCategories()
+      toast.error('서버 오류가 발생했습니다.')
+    }
+  }
+
   const [showModal, setShowModal] = useState(false)
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null)
+  const [editingCategory, setEditingCategory] = useState<AdminCategory | null>(null)
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
     description: '',
   })
 
-  const handleOpenModal = (category?: Category) => {
+  const handleOpenModal = (category?: AdminCategory) => {
     if (category) {
       setEditingCategory(category)
       setFormData({
@@ -160,7 +294,7 @@ export default function CategoriesPage() {
         <CardHeader>
           <CardTitle>전체 카테고리 ({categories.length}개)</CardTitle>
           <CardDescription>
-            등록된 모든 카테고리를 확인하고 관리할 수 있습니다
+            드래그하여 순서를 변경할 수 있습니다
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -178,62 +312,39 @@ export default function CategoriesPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="pb-3 text-left font-medium w-12">순서</th>
-                    <th className="pb-3 text-left font-medium">이름</th>
-                    <th className="pb-3 text-left font-medium">슬러그</th>
-                    <th className="pb-3 text-left font-medium">설명</th>
-                    <th className="pb-3 text-left font-medium">템플릿 수</th>
-                    <th className="pb-3 text-right font-medium">액션</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {categories
-                    .sort((a, b) => a.order - b.order)
-                    .map((category) => (
-                      <tr key={category.id} className="border-b last:border-0">
-                        <td className="py-4">
-                          <button className="cursor-move text-muted-foreground hover:text-foreground">
-                            <GripVertical className="h-5 w-5" />
-                          </button>
-                        </td>
-                        <td className="py-4 font-medium">{category.name}</td>
-                        <td className="py-4 text-muted-foreground font-mono text-sm">
-                          {category.slug}
-                        </td>
-                        <td className="py-4 text-muted-foreground max-w-md truncate">
-                          {category.description || '-'}
-                        </td>
-                        <td className="py-4 text-muted-foreground">
-                          {category.templateCount}개
-                        </td>
-                        <td className="py-4">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleOpenModal(category)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                handleDelete(category.id, category.name, category.templateCount)
-                              }
-                              disabled={category.templateCount > 0}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="pb-3 text-left font-medium w-12">순서</th>
+                      <th className="pb-3 text-left font-medium">이름</th>
+                      <th className="pb-3 text-left font-medium">슬러그</th>
+                      <th className="pb-3 text-left font-medium">설명</th>
+                      <th className="pb-3 text-left font-medium">템플릿 수</th>
+                      <th className="pb-3 text-right font-medium">액션</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <SortableContext
+                      items={categories.map((cat) => cat.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {categories.map((category) => (
+                        <SortableRow
+                          key={category.id}
+                          category={category}
+                          onEdit={handleOpenModal}
+                          onDelete={handleDelete}
+                        />
+                      ))}
+                    </SortableContext>
+                  </tbody>
+                </table>
+              </DndContext>
             </div>
           )}
         </CardContent>

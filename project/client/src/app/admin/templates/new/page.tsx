@@ -1,14 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { ArrowLeft, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 
+interface Category {
+  id: string
+  name: string
+  slug: string
+}
+
 export default function NewTemplatePage() {
   const router = useRouter()
+  const [categories, setCategories] = useState<Category[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [formData, setFormData] = useState({
     title: '',
     categoryId: '',
@@ -17,6 +26,23 @@ export default function NewTemplatePage() {
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string>('')
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/admin/categories')
+        if (response.ok) {
+          const data = await response.json()
+          setCategories(data.data || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch categories:', error)
+      } finally {
+        setCategoriesLoading(false)
+      }
+    }
+    fetchCategories()
+  }, [])
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -129,18 +155,37 @@ export default function NewTemplatePage() {
                   <label className="block text-sm font-medium mb-2">
                     카테고리 *
                   </label>
-                  <select
-                    value={formData.categoryId}
-                    onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                    className="w-full rounded-lg border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
-                    required
-                  >
-                    <option value="">선택하세요</option>
-                    <option value="animals">동물</option>
-                    <option value="nature">자연</option>
-                    <option value="food">음식</option>
-                    <option value="objects">사물</option>
-                  </select>
+                  {categoriesLoading ? (
+                    <div className="w-full rounded-lg border px-4 py-2 text-muted-foreground">
+                      로딩 중...
+                    </div>
+                  ) : categories.length === 0 ? (
+                    <div className="space-y-2">
+                      <div className="w-full rounded-lg border px-4 py-2 text-muted-foreground bg-muted/30">
+                        등록된 카테고리가 없습니다
+                      </div>
+                      <Link
+                        href="/admin/categories"
+                        className="text-sm text-primary hover:underline"
+                      >
+                        카테고리 추가하러 가기
+                      </Link>
+                    </div>
+                  ) : (
+                    <select
+                      value={formData.categoryId}
+                      onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                      className="w-full rounded-lg border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                      required
+                    >
+                      <option value="">선택하세요</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 {/* 난이도 */}
