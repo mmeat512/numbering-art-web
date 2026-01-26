@@ -42,10 +42,11 @@ export default function ColoringPage() {
   const isInitializedRef = useRef(false)
   const prevTemplateIdRef = useRef<string | null>(null)
 
-  // 템플릿이 변경되면 모달 닫기
+  // 템플릿이 변경되면 모달 닫기 및 초기화 플래그 리셋
   useEffect(() => {
     if (prevTemplateIdRef.current && prevTemplateIdRef.current !== templateId) {
       setShowCompletionModal(false)
+      isInitializedRef.current = false // 새 템플릿을 위해 초기화 플래그 리셋
     }
     prevTemplateIdRef.current = templateId
   }, [templateId])

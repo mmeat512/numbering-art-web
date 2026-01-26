@@ -1,7 +1,7 @@
 'use client'
 
 import { openDB, DBSchema, IDBPDatabase } from 'idb'
-import { ColoredRegion } from '@/types'
+import { ColoredRegion, Template, FilledRegion } from '@/types'
 
 /**
  * IndexedDB 스키마 정의
@@ -266,6 +266,71 @@ export function createThumbnail(
 
   ctx.drawImage(canvas, 0, 0, thumbnailCanvas.width, thumbnailCanvas.height)
   return thumbnailCanvas.toDataURL('image/webp', 0.7)
+}
+
+/**
+ * SVG 템플릿에서 썸네일 생성
+ */
+export async function createThumbnailFromTemplate(
+  template: Template,
+  filledRegions: Map<string, FilledRegion>,
+  size = 200
+): Promise<string> {
+  return new Promise((resolve) => {
+    // SVG 문자열 생성
+    const viewBoxParts = template.templateData.viewBox.split(' ').map(Number)
+    const svgWidth = viewBoxParts[2] || 400
+    const svgHeight = viewBoxParts[3] || 400
+
+    const paths = template.templateData.regions.map((region) => {
+      const filled = filledRegions.get(region.id)
+      let fillColor = '#FFFFFF'
+
+      if (filled?.isCorrect) {
+        const color = template.colorPalette.find(c => c.number === region.colorNumber)
+        fillColor = color?.hex || '#FFFFFF'
+      }
+
+      return `<path d="${region.path}" fill="${fillColor}" stroke="#CBD5E1" stroke-width="1"/>`
+    }).join('')
+
+    const svgString = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="${template.templateData.viewBox}" width="${size}" height="${size}">
+        <rect width="100%" height="100%" fill="white"/>
+        ${paths}
+      </svg>
+    `
+
+    // SVG를 이미지로 변환
+    const img = new Image()
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')
+
+      if (ctx) {
+        ctx.fillStyle = 'white'
+        ctx.fillRect(0, 0, size, size)
+        ctx.drawImage(img, 0, 0, size, size)
+        resolve(canvas.toDataURL('image/webp', 0.8))
+      } else {
+        resolve('')
+      }
+
+      URL.revokeObjectURL(url)
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      resolve('')
+    }
+
+    img.src = url
+  })
 }
 
 /**

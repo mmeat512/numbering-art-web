@@ -11,7 +11,8 @@ import {
   saveArtwork,
   getArtwork,
   getArtworksByTemplate,
-  LocalArtwork
+  LocalArtwork,
+  createThumbnailFromTemplate
 } from '@/lib/db/indexedDB'
 
 interface GameStore {
@@ -274,7 +275,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // 저장하기
   saveProgress: async () => {
-    const { template, filledRegions, mistakesCount, isCompleted, currentArtworkId, getProgress } = get()
+    const { template, filledRegions, mistakesCount, currentArtworkId, getProgress } = get()
     if (!template) return null
 
     const progress = getProgress()
@@ -294,10 +295,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
       timestamp: fr.filledAt,
     }))
 
+    // 썸네일 생성
+    let thumbnailDataUrl: string | undefined
+    try {
+      thumbnailDataUrl = await createThumbnailFromTemplate(template, filledRegions, 200)
+    } catch (error) {
+      console.error('Failed to create thumbnail:', error)
+    }
+
     const artwork: LocalArtwork = {
       id: artworkId,
       templateId: template.id,
       title: template.title,
+      thumbnailDataUrl,
       coloredRegions,
       progress,
       createdAt: currentArtworkId ? now : now, // 새 작품이면 현재시간

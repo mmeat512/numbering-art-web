@@ -142,6 +142,17 @@ export function PaintByNumberCanvas({ template, className }: PaintByNumberCanvas
 
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
 
+  // 터치 줌 상태
+  const touchStateRef = useRef<{
+    initialDistance: number | null
+    initialZoom: number
+    lastTouchCount: number
+  }>({
+    initialDistance: null,
+    initialZoom: 1,
+    lastTouchCount: 0,
+  })
+
   const {
     gameState,
     filledRegions,
@@ -243,6 +254,49 @@ export function PaintByNumberCanvas({ template, className }: PaintByNumberCanvas
     setZoom(gameState.zoomLevel + delta)
   }, [gameState.zoomLevel, setZoom])
 
+  // 두 터치 포인트 간의 거리 계산
+  const getTouchDistance = useCallback((touches: React.TouchList): number => {
+    if (touches.length < 2) return 0
+    const dx = touches[0].clientX - touches[1].clientX
+    const dy = touches[0].clientY - touches[1].clientY
+    return Math.sqrt(dx * dx + dy * dy)
+  }, [])
+
+  // 터치 시작 핸들러
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      // 핀치 줌 시작
+      const distance = getTouchDistance(e.touches)
+      touchStateRef.current = {
+        initialDistance: distance,
+        initialZoom: gameState.zoomLevel,
+        lastTouchCount: 2,
+      }
+    } else {
+      touchStateRef.current.lastTouchCount = e.touches.length
+    }
+  }, [gameState.zoomLevel, getTouchDistance])
+
+  // 터치 이동 핸들러 (핀치 줌)
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchStateRef.current.initialDistance !== null) {
+      e.preventDefault()
+      const currentDistance = getTouchDistance(e.touches)
+      const scale = currentDistance / touchStateRef.current.initialDistance
+      const newZoom = touchStateRef.current.initialZoom * scale
+      setZoom(newZoom)
+    }
+  }, [getTouchDistance, setZoom])
+
+  // 터치 종료 핸들러
+  const handleTouchEnd = useCallback(() => {
+    touchStateRef.current = {
+      initialDistance: null,
+      initialZoom: gameState.zoomLevel,
+      lastTouchCount: 0,
+    }
+  }, [gameState.zoomLevel])
+
   if (containerSize.width === 0) {
     return (
       <div ref={containerRef} className={cn('flex-1 flex items-center justify-center', className)}>
@@ -259,6 +313,9 @@ export function PaintByNumberCanvas({ template, className }: PaintByNumberCanvas
         className
       )}
       onWheel={handleWheel}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       <div
         className="relative rounded-lg border-2 border-border bg-white shadow-lg overflow-hidden"
