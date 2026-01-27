@@ -153,6 +153,31 @@ export function PaintByNumberCanvas({ template, className }: PaintByNumberCanvas
     lastTouchCount: 0,
   })
 
+  // 드래그/팬 상태
+  const dragStateRef = useRef<{
+    isDragging: boolean
+    startX: number
+    startY: number
+    startPanX: number
+    startPanY: number
+    lastX: number
+    lastY: number
+    startTime: number
+  }>({
+    isDragging: false,
+    startX: 0,
+    startY: 0,
+    startPanX: 0,
+    startPanY: 0,
+    lastX: 0,
+    lastY: 0,
+    startTime: 0,
+  })
+
+  // 탭 감지 임계값
+  const TAP_THRESHOLD = 10 // 픽셀
+  const TAP_TIMEOUT = 300 // 밀리초
+
   const {
     gameState,
     filledRegions,
@@ -254,6 +279,45 @@ export function PaintByNumberCanvas({ template, className }: PaintByNumberCanvas
     setZoom(gameState.zoomLevel + delta)
   }, [gameState.zoomLevel, setZoom])
 
+  // 마우스 다운 핸들러
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    // 줌 상태에서만 드래그 가능
+    if (gameState.zoomLevel <= 1) return
+
+    dragStateRef.current = {
+      isDragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      startPanX: gameState.panX,
+      startPanY: gameState.panY,
+      lastX: e.clientX,
+      lastY: e.clientY,
+      startTime: Date.now(),
+    }
+  }, [gameState.zoomLevel, gameState.panX, gameState.panY])
+
+  // 마우스 이동 핸들러
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!dragStateRef.current.isDragging) return
+
+    const deltaX = e.clientX - dragStateRef.current.lastX
+    const deltaY = e.clientY - dragStateRef.current.lastY
+
+    dragStateRef.current.lastX = e.clientX
+    dragStateRef.current.lastY = e.clientY
+
+    // 줌 레벨에 따라 이동량 조정
+    const adjustedDeltaX = deltaX / gameState.zoomLevel
+    const adjustedDeltaY = deltaY / gameState.zoomLevel
+
+    setPan(gameState.panX + adjustedDeltaX, gameState.panY + adjustedDeltaY)
+  }, [gameState.zoomLevel, gameState.panX, gameState.panY, setPan])
+
+  // 마우스 업 핸들러
+  const handleMouseUp = useCallback(() => {
+    dragStateRef.current.isDragging = false
+  }, [])
+
   // 두 터치 포인트 간의 거리 계산
   const getTouchDistance = useCallback((touches: React.TouchList): number => {
     if (touches.length < 2) return 0
@@ -272,24 +336,88 @@ export function PaintByNumberCanvas({ template, className }: PaintByNumberCanvas
         initialZoom: gameState.zoomLevel,
         lastTouchCount: 2,
       }
+      // 핀치 줌 시작 시 드래그 상태 리셋
+      dragStateRef.current.isDragging = false
+    } else if (e.touches.length === 1 && gameState.zoomLevel > 1) {
+      // 줌 상태에서 한 손가락 터치 - 팬 준비 (아직 드래그 시작 아님)
+      const touch = e.touches[0]
+      dragStateRef.current = {
+        isDragging: false, // 이동 거리가 threshold를 넘으면 true로 변경
+        startX: touch.clientX,
+        startY: touch.clientY,
+        startPanX: gameState.panX,
+        startPanY: gameState.panY,
+        lastX: touch.clientX,
+        lastY: touch.clientY,
+        startTime: Date.now(),
+      }
+      touchStateRef.current.lastTouchCount = 1
     } else {
       touchStateRef.current.lastTouchCount = e.touches.length
     }
-  }, [gameState.zoomLevel, getTouchDistance])
+  }, [gameState.zoomLevel, gameState.panX, gameState.panY, getTouchDistance])
 
-  // 터치 이동 핸들러 (핀치 줌)
+  // 터치 이동 핸들러 (핀치 줌 + 팬)
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (e.touches.length === 2 && touchStateRef.current.initialDistance !== null) {
+      // 핀치 줌 처리
       e.preventDefault()
       const currentDistance = getTouchDistance(e.touches)
       const scale = currentDistance / touchStateRef.current.initialDistance
       const newZoom = touchStateRef.current.initialZoom * scale
       setZoom(newZoom)
+    } else if (e.touches.length === 1 && gameState.zoomLevel > 1) {
+      // 한 손가락 팬 처리
+      const touch = e.touches[0]
+
+      // 드래그 시작 감지: 이동 거리가 TAP_THRESHOLD를 넘으면 드래그 시작
+      if (!dragStateRef.current.isDragging) {
+        const distanceFromStart = Math.sqrt(
+          Math.pow(touch.clientX - dragStateRef.current.startX, 2) +
+          Math.pow(touch.clientY - dragStateRef.current.startY, 2)
+        )
+        if (distanceFromStart > TAP_THRESHOLD) {
+          dragStateRef.current.isDragging = true
+        } else {
+          return // 아직 드래그 시작 아님, 탭으로 처리될 수 있음
+        }
+      }
+
+      e.preventDefault()
+
+      const deltaX = touch.clientX - dragStateRef.current.lastX
+      const deltaY = touch.clientY - dragStateRef.current.lastY
+
+      dragStateRef.current.lastX = touch.clientX
+      dragStateRef.current.lastY = touch.clientY
+
+      // 줌 레벨에 따라 이동량 조정
+      const adjustedDeltaX = deltaX / gameState.zoomLevel
+      const adjustedDeltaY = deltaY / gameState.zoomLevel
+
+      setPan(gameState.panX + adjustedDeltaX, gameState.panY + adjustedDeltaY)
     }
-  }, [getTouchDistance, setZoom])
+  }, [getTouchDistance, setZoom, gameState.zoomLevel, gameState.panX, gameState.panY, setPan])
 
   // 터치 종료 핸들러
-  const handleTouchEnd = useCallback(() => {
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    // 드래그 거리 계산 (탭 vs 드래그 구분용)
+    if (dragStateRef.current.isDragging) {
+      const distanceMoved = Math.sqrt(
+        Math.pow(dragStateRef.current.lastX - dragStateRef.current.startX, 2) +
+        Math.pow(dragStateRef.current.lastY - dragStateRef.current.startY, 2)
+      )
+      const elapsed = Date.now() - dragStateRef.current.startTime
+
+      // 탭 감지: 이동 거리가 작고 시간이 짧으면 탭으로 처리
+      if (distanceMoved < TAP_THRESHOLD && elapsed < TAP_TIMEOUT) {
+        // 탭으로 처리 - 실제 클릭 이벤트는 path에서 처리됨
+      }
+    }
+
+    // 드래그 상태 리셋
+    dragStateRef.current.isDragging = false
+
     touchStateRef.current = {
       initialDistance: null,
       initialZoom: gameState.zoomLevel,
@@ -313,9 +441,14 @@ export function PaintByNumberCanvas({ template, className }: PaintByNumberCanvas
         className
       )}
       onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      style={{ cursor: gameState.zoomLevel > 1 ? 'grab' : 'default' }}
     >
       <div
         className="relative rounded-lg border-2 border-border bg-white shadow-lg overflow-hidden"
