@@ -135,7 +135,7 @@ export default function HomePage() {
                     >
                       <Card className="overflow-hidden transition-transform hover:scale-105">
                         <CardContent className="p-0">
-                          <div className="relative aspect-square bg-gradient-to-br from-slate-50 to-slate-100 p-2">
+                          <div className="relative aspect-square bg-gradient-to-br from-slate-50 to-slate-100 p-1">
                             {template.templateData && (
                               <svg
                                 viewBox={template.templateData.viewBox}

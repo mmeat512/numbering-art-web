@@ -20,9 +20,9 @@ const difficultyLabels = {
 }
 
 const sizeClasses = {
-  sm: 'w-32',
-  md: 'w-40',
-  lg: 'w-48',
+  sm: 'w-full',
+  md: 'w-full',
+  lg: 'w-full',
 }
 
 export function TemplateCard({ template, size = 'md', isCompleted = false, filledRegions }: TemplateCardProps) {
@@ -57,7 +57,7 @@ export function TemplateCard({ template, size = 'md', isCompleted = false, fille
             ) : template.templateData ? (
               // SVG 미리보기 (완료 시 색칠된 상태, 미완료 시 윤곽선만)
               <div className={cn(
-                "flex h-full w-full items-center justify-center p-2",
+                "flex h-full w-full items-center justify-center p-1",
                 isCompleted
                   ? "bg-gradient-to-br from-green-50 to-emerald-50"
                   : "bg-gradient-to-br from-slate-50 to-slate-100"

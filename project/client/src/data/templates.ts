@@ -191,12 +191,83 @@ export const TEMPLATE_APPLE: Template = {
   },
 }
 
+// 샘플 템플릿 5: 만다라 패턴 (어려움)
+export const TEMPLATE_MANDALA: Template = {
+  id: 'mandala-flower',
+  title: '연꽃 만다라',
+  categoryId: 'pattern',
+  difficulty: 'hard',
+  colorCount: 8,
+  regionCount: 33,
+  estimatedTime: 25,
+  thumbnailUrl: '',
+  usageCount: 180,
+  createdAt: '2026-01-27',
+  colorPalette: [
+    { number: 1, hex: '#9C27B0', name: '보라', totalRegions: 8 },
+    { number: 2, hex: '#E91E63', name: '분홍', totalRegions: 8 },
+    { number: 3, hex: '#FF9800', name: '주황', totalRegions: 4 },
+    { number: 4, hex: '#FFEB3B', name: '노랑', totalRegions: 4 },
+    { number: 5, hex: '#4CAF50', name: '초록', totalRegions: 4 },
+    { number: 6, hex: '#2196F3', name: '파랑', totalRegions: 2 },
+    { number: 7, hex: '#F44336', name: '빨강', totalRegions: 1 },
+    { number: 8, hex: '#FFFFFF', name: '흰색', totalRegions: 2 },
+  ],
+  templateData: {
+    viewBox: '0 0 300 300',
+    regions: [
+      // 중심 원 (빨강)
+      { id: 'center', colorNumber: 7, path: 'M150,150 m-15,0 a15,15 0 1,0 30,0 a15,15 0 1,0 -30,0', labelX: 150, labelY: 150 },
+      // 내부 꽃잎 8개 (노랑)
+      { id: 'inner-petal-1', colorNumber: 4, path: 'M150,135 Q160,115 150,95 Q140,115 150,135 Z', labelX: 150, labelY: 115 },
+      { id: 'inner-petal-2', colorNumber: 4, path: 'M165,150 Q185,140 205,150 Q185,160 165,150 Z', labelX: 185, labelY: 150 },
+      { id: 'inner-petal-3', colorNumber: 4, path: 'M150,165 Q160,185 150,205 Q140,185 150,165 Z', labelX: 150, labelY: 185 },
+      { id: 'inner-petal-4', colorNumber: 4, path: 'M135,150 Q115,140 95,150 Q115,160 135,150 Z', labelX: 115, labelY: 150 },
+      // 중간 꽃잎 8개 (분홍)
+      { id: 'mid-petal-1', colorNumber: 2, path: 'M150,90 Q170,70 150,50 Q130,70 150,90 Z', labelX: 150, labelY: 70 },
+      { id: 'mid-petal-2', colorNumber: 2, path: 'M192,108 Q222,98 232,68 Q202,78 192,108 Z', labelX: 212, labelY: 88 },
+      { id: 'mid-petal-3', colorNumber: 2, path: 'M210,150 Q230,130 250,150 Q230,170 210,150 Z', labelX: 230, labelY: 150 },
+      { id: 'mid-petal-4', colorNumber: 2, path: 'M192,192 Q222,202 232,232 Q202,222 192,192 Z', labelX: 212, labelY: 212 },
+      { id: 'mid-petal-5', colorNumber: 2, path: 'M150,210 Q170,230 150,250 Q130,230 150,210 Z', labelX: 150, labelY: 230 },
+      { id: 'mid-petal-6', colorNumber: 2, path: 'M108,192 Q78,202 68,232 Q98,222 108,192 Z', labelX: 88, labelY: 212 },
+      { id: 'mid-petal-7', colorNumber: 2, path: 'M90,150 Q70,130 50,150 Q70,170 90,150 Z', labelX: 70, labelY: 150 },
+      { id: 'mid-petal-8', colorNumber: 2, path: 'M108,108 Q78,98 68,68 Q98,78 108,108 Z', labelX: 88, labelY: 88 },
+      // 외부 꽃잎 8개 (보라)
+      { id: 'outer-petal-1', colorNumber: 1, path: 'M150,45 Q175,25 150,5 Q125,25 150,45 Z', labelX: 150, labelY: 25 },
+      { id: 'outer-petal-2', colorNumber: 1, path: 'M224,76 Q259,56 274,26 Q239,46 224,76 Z', labelX: 249, labelY: 51 },
+      { id: 'outer-petal-3', colorNumber: 1, path: 'M255,150 Q275,125 295,150 Q275,175 255,150 Z', labelX: 275, labelY: 150 },
+      { id: 'outer-petal-4', colorNumber: 1, path: 'M224,224 Q259,244 274,274 Q239,254 224,224 Z', labelX: 249, labelY: 249 },
+      { id: 'outer-petal-5', colorNumber: 1, path: 'M150,255 Q175,275 150,295 Q125,275 150,255 Z', labelX: 150, labelY: 275 },
+      { id: 'outer-petal-6', colorNumber: 1, path: 'M76,224 Q41,244 26,274 Q61,254 76,224 Z', labelX: 51, labelY: 249 },
+      { id: 'outer-petal-7', colorNumber: 1, path: 'M45,150 Q25,125 5,150 Q25,175 45,150 Z', labelX: 25, labelY: 150 },
+      { id: 'outer-petal-8', colorNumber: 1, path: 'M76,76 Q41,56 26,26 Q61,46 76,76 Z', labelX: 51, labelY: 51 },
+      // 장식 원 4개 (주황)
+      { id: 'deco-circle-1', colorNumber: 3, path: 'M150,65 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0', labelX: 150, labelY: 65 },
+      { id: 'deco-circle-2', colorNumber: 3, path: 'M235,150 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0', labelX: 235, labelY: 150 },
+      { id: 'deco-circle-3', colorNumber: 3, path: 'M150,235 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0', labelX: 150, labelY: 235 },
+      { id: 'deco-circle-4', colorNumber: 3, path: 'M65,150 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0', labelX: 65, labelY: 150 },
+      // 대각선 장식 4개 (초록)
+      { id: 'deco-leaf-1', colorNumber: 5, path: 'M200,100 Q210,90 205,80 Q195,85 200,100 Z', labelX: 202, labelY: 90 },
+      { id: 'deco-leaf-2', colorNumber: 5, path: 'M200,200 Q210,210 205,220 Q195,215 200,200 Z', labelX: 202, labelY: 210 },
+      { id: 'deco-leaf-3', colorNumber: 5, path: 'M100,200 Q90,210 95,220 Q105,215 100,200 Z', labelX: 98, labelY: 210 },
+      { id: 'deco-leaf-4', colorNumber: 5, path: 'M100,100 Q90,90 95,80 Q105,85 100,100 Z', labelX: 98, labelY: 90 },
+      // 외곽 링 (파랑)
+      { id: 'outer-ring-top', colorNumber: 6, path: 'M150,20 Q80,20 40,60 Q80,50 150,50 Q220,50 260,60 Q220,20 150,20 Z', labelX: 150, labelY: 35 },
+      { id: 'outer-ring-bottom', colorNumber: 6, path: 'M150,280 Q80,280 40,240 Q80,250 150,250 Q220,250 260,240 Q220,280 150,280 Z', labelX: 150, labelY: 265 },
+      // 모서리 장식 (흰색)
+      { id: 'corner-1', colorNumber: 8, path: 'M30,30 Q45,20 60,30 Q45,40 30,30 Z', labelX: 45, labelY: 30 },
+      { id: 'corner-2', colorNumber: 8, path: 'M270,270 Q255,280 240,270 Q255,260 270,270 Z', labelX: 255, labelY: 270 },
+    ],
+  },
+}
+
 // 전체 템플릿 목록
 export const SAMPLE_TEMPLATES: Template[] = [
   TEMPLATE_APPLE,
   TEMPLATE_FLOWER,
   TEMPLATE_HEART,
   TEMPLATE_CAT,
+  TEMPLATE_MANDALA,
 ]
 
 // ID로 템플릿 찾기
