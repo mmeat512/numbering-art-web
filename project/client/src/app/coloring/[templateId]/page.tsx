@@ -31,6 +31,7 @@ export default function ColoringPage() {
     undoLastFill,
     resetProgress,
     setZoom,
+    setPan,
     saveProgress,
     loadProgress,
     loadProgressByTemplate,
@@ -170,7 +171,8 @@ export default function ColoringPage() {
 
   const handleResetZoom = useCallback(() => {
     setZoom(1)
-  }, [setZoom])
+    setPan(0, 0)
+  }, [setZoom, setPan])
 
   if (!template) {
     return (
