@@ -277,17 +277,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   // 저장하기
   saveProgress: async () => {
-    const { template, filledRegions, mistakesCount, currentArtworkId, getProgress } = get()
+    const { template, filledRegions, mistakesCount, getProgress } = get()
     if (!template) return null
 
     const progress = getProgress()
     const now = Date.now()
 
-    // 작품 ID 생성 또는 기존 ID 사용
-    // 안전장치: currentArtworkId가 현재 템플릿과 맞지 않으면 새로 생성
-    const isMatchingArtwork = currentArtworkId?.includes(template.id)
-    const artworkId = (currentArtworkId && isMatchingArtwork)
-      ? currentArtworkId
+    // 동일 템플릿의 기존 artwork 확인 (DB에서)
+    // 기존 artwork가 있으면 그 ID 사용 (덮어쓰기), 없으면 새로 생성
+    const existingArtworks = await getArtworksByTemplate(template.id)
+    const artworkId = existingArtworks.length > 0
+      ? existingArtworks.sort((a, b) => b.updatedAt - a.updatedAt)[0].id
       : `artwork_${template.id}_${now}`
 
     // FilledRegion Map을 배열로 변환하여 저장
@@ -316,7 +316,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       thumbnailDataUrl,
       coloredRegions,
       progress,
-      createdAt: currentArtworkId ? now : now, // 새 작품이면 현재시간
+      createdAt: existingArtworks.length > 0 ? existingArtworks[0].createdAt : now,
       updatedAt: now,
       isSynced: false,
       // filledRegions 원본 데이터도 저장 (확장 필드로)
