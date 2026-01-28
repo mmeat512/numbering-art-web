@@ -35,6 +35,7 @@ export default function ColoringPage() {
     saveProgress,
     loadProgress,
     loadProgressByTemplate,
+    clearFeedback,
   } = useGameStore()
 
   const [showCompletionModal, setShowCompletionModal] = useState(false)
@@ -45,12 +46,15 @@ export default function ColoringPage() {
 
   // 템플릿이 변경되면 모달 닫기 및 초기화 플래그 리셋
   useEffect(() => {
+    // 페이지 마운트 시 이전 도안의 완성 상태가 남아있을 수 있으므로 즉시 리셋
+    clearFeedback()
+    setShowCompletionModal(false)
+
     if (prevTemplateIdRef.current && prevTemplateIdRef.current !== templateId) {
-      setShowCompletionModal(false)
       isInitializedRef.current = false // 새 템플릿을 위해 초기화 플래그 리셋
     }
     prevTemplateIdRef.current = templateId
-  }, [templateId])
+  }, [templateId, clearFeedback])
 
   // 템플릿 로드 및 게임 시작
   useEffect(() => {
