@@ -90,12 +90,15 @@ export default function ColoringPage() {
 
   // 완성 시 모달 표시 및 자동 저장
   useEffect(() => {
+    // 현재 템플릿이 URL의 템플릿과 일치하는지 확인 (이전 도안의 완성 상태가 남아있을 때 모달 표시 방지)
+    if (!template || template.id !== templateId) return
+
     if (isCompleted && feedback.type === 'complete') {
       setShowCompletionModal(true)
       // 완성 시 자동 저장
       saveProgress()
     }
-  }, [isCompleted, feedback.type, saveProgress])
+  }, [isCompleted, feedback.type, saveProgress, template, templateId])
 
   // 자동 저장 (30초마다 변경사항이 있으면 저장)
   useEffect(() => {
