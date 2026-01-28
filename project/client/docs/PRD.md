@@ -290,7 +290,7 @@
 ### 4.4 데이터베이스 스키마 (Supabase PostgreSQL)
 
 ```sql
--- 도안 템플릿 테이블
+-- 도안 템플릿 테이블 (하이브리드 방식)
 CREATE TABLE templates (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   title TEXT NOT NULL,
@@ -299,10 +299,30 @@ CREATE TABLE templates (
   color_count INTEGER NOT NULL, -- 색상 개수 (5-30)
   region_count INTEGER NOT NULL, -- 총 영역 개수
   estimated_time INTEGER, -- 예상 완성 시간 (분)
-  image_url TEXT NOT NULL,
-  thumbnail_url TEXT NOT NULL,
-  template_data JSONB NOT NULL, -- 영역-숫자 매핑 데이터
-  color_palette JSONB NOT NULL, -- 숫자-색상 매핑 (예: {"1": "#FF0000", "2": "#00FF00"})
+
+  -- 이미지 레이어 (하이브리드 방식)
+  image_url TEXT NOT NULL,       -- 디스플레이용 선화 PNG (고해상도)
+  color_map_url TEXT,            -- 터치 인식용 컬러맵 PNG (숨겨진 레이어)
+  thumbnail_url TEXT NOT NULL,   -- 썸네일 이미지
+
+  -- 영역-숫자 매핑 데이터
+  -- {
+  --   "viewBox": "0 0 1024 1024",
+  --   "regions": [
+  --     {"id": "r1", "colorNumber": 1, "mapColor": "#FF0000", "labelX": 100, "labelY": 100},
+  --     ...
+  --   ]
+  -- }
+  template_data JSONB NOT NULL,
+
+  -- 숫자-색상 매핑 (사용자 팔레트)
+  -- [
+  --   {"number": 1, "hex": "#E53935", "name": "빨강", "totalRegions": 15},
+  --   {"number": 2, "hex": "#2196F3", "name": "파랑", "totalRegions": 12},
+  --   ...
+  -- ]
+  color_palette JSONB NOT NULL,
+
   usage_count INTEGER DEFAULT 0,
   average_completion_time INTEGER, -- 평균 완성 시간
   created_at TIMESTAMP DEFAULT NOW()
@@ -363,8 +383,28 @@ CREATE POLICY "Users can view their own completed artworks"
 
 ### 4.5 숫자 맞춤 데이터 구조
 
+#### 하이브리드 렌더링 방식 (Happy Color 벤치마킹)
+
+복잡한 도안에서도 성능 저하 없이 부드러운 터치 인식을 위해 **하이브리드 방식**을 채택합니다:
+
+1. **디스플레이 레이어 (PNG)**: 사용자에게 보여주는 고해상도 선화 이미지
+   - 복잡한 디테일을 성능 저하 없이 표현
+   - 투명 배경 PNG 사용
+
+2. **컬러맵 레이어 (숨겨진 이미지)**: 터치 인식용 색상 지도
+   - 각 영역을 고유한 색상으로 칠한 이미지 (예: 영역1=빨강, 영역2=파랑)
+   - 사용자에게는 보이지 않음
+   - 터치 좌표의 픽셀 색상으로 영역 식별
+
+3. **색칠 레이어 (Canvas)**: 사용자가 색칠한 결과
+   - 식별된 영역에 해당 색상 채우기
+
+```
+[터치 이벤트] → [컬러맵에서 좌표의 색상 확인] → [영역 식별] → [색칠 레이어에 색상 적용]
+```
+
 ```typescript
-// 도안 템플릿 데이터 구조
+// 도안 템플릿 데이터 구조 (하이브리드 방식)
 interface Template {
   id: string;
   title: string;
@@ -372,40 +412,73 @@ interface Template {
   colorCount: number; // 5-30
   regionCount: number;
   estimatedTime: number; // 분
-  imageUrl: string;
-  thumbnailUrl: string;
-  // 영역-숫자 매핑 (SVG path 또는 좌표 기반)
+
+  // 이미지 레이어
+  imageUrl: string;        // 디스플레이용 선화 PNG (고해상도)
+  colorMapUrl: string;     // 터치 인식용 컬러맵 PNG (숨겨진 레이어)
+  thumbnailUrl: string;    // 썸네일 이미지
+
+  // 영역-숫자 매핑
   templateData: {
-    regions: Region[];
+    viewBox: string;       // SVG viewBox (예: "0 0 1024 1024")
+    regions: Region[];     // 각 영역 정보
   };
-  // 숫자-색상 매핑
-  colorPalette: {
-    [key: number]: {
-      color: string; // hex code
-      name: string; // "빨강", "파랑" 등
-      totalRegions: number; // 이 색상으로 칠할 총 영역 수
-    };
-  };
+
+  // 숫자-색상 매핑 (사용자에게 보여줄 색상)
+  colorPalette: NumberedColor[];
 }
 
 interface Region {
   id: string;
-  correctColorNumber: number; // 정답 색상 번호
-  path: string; // SVG path 또는 좌표 배열
-  isFilled: boolean;
-  filledColor?: number;
+  colorNumber: number;     // 정답 색상 번호 (1, 2, 3...)
+  mapColor: string;        // 컬러맵에서의 고유 색상 (터치 인식용, 예: "#FF0000")
+  path?: string;           // SVG path (옵션 - 폴백용)
+  labelX: number;          // 숫자 레이블 X 좌표
+  labelY: number;          // 숫자 레이블 Y 좌표
+}
+
+interface NumberedColor {
+  number: number;          // 팔레트 번호 (1, 2, 3...)
+  hex: string;             // 실제 색상 코드
+  name: string;            // 색상 이름 ("빨강", "파랑" 등)
+  totalRegions: number;    // 이 색상으로 칠할 총 영역 수
 }
 
 // 사용자 진행 상황
 interface UserProgress {
   templateId: string;
   filledRegions: {
-    [regionId: string]: number; // region_id: color_number
+    [regionId: string]: number; // region_id: filled_color_number
   };
   progress: number; // 0-100
   mistakesCount: number;
   startTime: Date;
   currentColorNumber?: number; // 현재 선택된 색상 번호
+}
+```
+
+#### 터치 인식 알고리즘
+
+```typescript
+// 터치 이벤트 처리 (하이브리드 방식)
+function handleTouch(x: number, y: number) {
+  // 1. 컬러맵 캔버스에서 해당 좌표의 픽셀 색상 확인
+  const ctx = colorMapCanvas.getContext('2d');
+  const pixel = ctx.getImageData(x, y, 1, 1).data;
+  const mapColor = rgbToHex(pixel[0], pixel[1], pixel[2]);
+
+  // 2. 컬러맵 색상으로 영역 찾기
+  const region = regions.find(r => r.mapColor === mapColor);
+  if (!region) return; // 빈 영역 (선 위)
+
+  // 3. 현재 선택된 색상과 정답 비교
+  if (currentColorNumber === region.colorNumber) {
+    // 정답! 색칠 레이어에 색상 적용
+    fillRegion(region.id, currentColorNumber);
+  } else {
+    // 오답! 피드백
+    showWrongFeedback();
+  }
 }
 ```
 
@@ -682,23 +755,31 @@ interface UserProgress {
 
 ### 10.1 기술적 리스크
 
-- **영역-숫자 매핑 복잡도**: SVG path 또는 픽셀 기반 선택
-  - **완화 방안**:
-    - 초기에는 간단한 다각형 영역으로 시작
-    - 도안 제작 도구 별도 개발
-    - 기존 Paint by Numbers 도안 참고
+- **영역-숫자 매핑 복잡도**: ~~SVG path 또는 픽셀 기반 선택~~ → **하이브리드 방식으로 해결**
+  - **해결 방안 (Happy Color 벤치마킹)**:
+    - 디스플레이 레이어: 고해상도 선화 PNG (복잡한 디테일 표현)
+    - 컬러맵 레이어: 각 영역을 고유 색상으로 칠한 숨겨진 이미지
+    - 터치 좌표의 픽셀 색상으로 영역 식별 (O(1) 성능)
+    - SVG path는 폴백용으로만 사용
 
 - **Canvas 성능**: 복잡한 도안에서 렌더링 성능 저하
   - **완화 방안**:
-    - 레이어 분리 (배경, 숫자, 색칠 영역)
+    - **하이브리드 방식**: PNG 이미지 렌더링은 매우 빠름
+    - 레이어 분리 (디스플레이 PNG, 컬러맵, 색칠 레이어)
     - requestAnimationFrame 사용
-    - WebP 포맷 최적화
+    - 색칠 시에만 Canvas 업데이트
 
 - **숫자 가독성**: 작은 영역에 숫자 표시 어려움
   - **완화 방안**:
     - 쉬움 난이도는 큰 영역만 사용
     - 줌인 시 숫자 크기 자동 조정
     - 너무 작은 영역은 도안 제작 시 제외
+
+- **컬러맵 제작**: 각 영역을 고유 색상으로 정확히 칠해야 함
+  - **완화 방안**:
+    - 자동 컬러맵 생성 도구 개발 (PNG → 컬러맵 변환)
+    - Flood Fill 알고리즘으로 영역 자동 분리
+    - 수동 보정 도구 제공
 
 - **PWA 인식 부족**: 시니어 사용자가 설치 어려워함
   - **완화 방안**:
@@ -729,6 +810,7 @@ interface UserProgress {
 
 ### 11.1 도안 제작 가이드라인
 
+#### 기본 규칙
 - **색상 개수**:
   - 쉬움: 5-10개
   - 보통: 10-20개
@@ -736,6 +818,40 @@ interface UserProgress {
 - **영역 크기**: 최소 30x30px (숫자 표시 가능)
 - **색상 선택**: 고대비, 구분 가능한 색상
 - **숫자 배치**: 영역 중앙, 읽기 쉬운 폰트
+
+#### 하이브리드 방식 도안 제작 (3개 파일 필요)
+
+1. **디스플레이 이미지 (display.png)**
+   - 사용자에게 보여줄 고해상도 선화 이미지
+   - 투명 배경 PNG (알파 채널 포함)
+   - 권장 해상도: 1024x1024 ~ 2048x2048
+   - 선 두께: 2-4px (확대 시 깨지지 않도록)
+
+2. **컬러맵 이미지 (colormap.png)**
+   - 터치 인식용 숨겨진 레이어
+   - 각 영역을 고유한 색상으로 채움 (예: 영역1=#FF0000, 영역2=#00FF00...)
+   - 선화 부분은 검정색(#000000) 또는 투명 처리
+   - 동일 크기, 동일 위치 정렬 필수
+   - 안티앨리어싱 OFF (경계 색상 혼합 방지)
+
+3. **썸네일 이미지 (thumbnail.png)**
+   - 완성된 모습 미리보기
+   - 권장 크기: 256x256 ~ 512x512
+
+#### 컬러맵 색상 규칙
+```
+영역 1: #FF0001 (빨강 계열)
+영역 2: #00FF02 (초록 계열)
+영역 3: #0000FF (파랑)
+영역 4: #FFFF00 (노랑)
+...
+최대 256개 영역까지 고유 색상 할당 가능
+```
+
+#### 자동 변환 도구
+- PNG/JPG → 컬러맵 자동 생성 API 제공
+- 색상 추출 + 영역 분리 + 컬러맵 생성
+- 복잡한 도안은 수동 보정 필요
 
 ### 11.2 품질 관리
 
@@ -795,7 +911,8 @@ interface UserProgress {
 | 1.2 | 2026-01-22 | Yeon | 시니어 친화 기능 반영 |
 | 2.0 | 2026-01-22 | Yeon | 기술 스택 변경 (Flutter, Supabase) |
 | 3.0 | 2026-01-22 | Yeon | 최종 기술 스택: Next.js + PWA |
-| **4.0** | **2026-01-23** | **Yeon** | **게임 방식 변경: 자유 컬러링 → 숫자 맞춤 컬러링 (Paint by Numbers)** |
+| 4.0 | 2026-01-23 | Yeon | 게임 방식 변경: 자유 컬러링 → 숫자 맞춤 컬러링 (Paint by Numbers) |
+| **5.0** | **2026-01-29** | **Yeon** | **하이브리드 렌더링 방식 도입 (Happy Color 벤치마킹): 디스플레이 PNG + 컬러맵 레이어** |
 
 ---
 
