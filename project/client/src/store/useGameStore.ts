@@ -261,11 +261,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
   startGame: (template) => {
     set({
       template,
+      currentArtworkId: null, // 새 게임 시작 시 이전 artwork ID 리셋
       gameState: { ...initialGameState, selectedColorNumber: 1 },
       filledRegions: new Map(),
       mistakesCount: 0,
       startTime: Date.now(),
       isCompleted: false,
+      isDirty: false, // 저장 상태도 리셋
       feedback: initialFeedback,
     })
   },
@@ -282,7 +284,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const now = Date.now()
 
     // 작품 ID 생성 또는 기존 ID 사용
-    const artworkId = currentArtworkId || `artwork_${template.id}_${now}`
+    // 안전장치: currentArtworkId가 현재 템플릿과 맞지 않으면 새로 생성
+    const isMatchingArtwork = currentArtworkId?.includes(template.id)
+    const artworkId = (currentArtworkId && isMatchingArtwork)
+      ? currentArtworkId
+      : `artwork_${template.id}_${now}`
 
     // FilledRegion Map을 배열로 변환하여 저장
     const filledRegionsArray = Array.from(filledRegions.values())
