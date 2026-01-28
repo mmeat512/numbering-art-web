@@ -191,7 +191,116 @@ export const TEMPLATE_APPLE: Template = {
   },
 }
 
-// 샘플 템플릿 5: 만다라 패턴 (어려움)
+// 샘플 템플릿 5: 꽃 정원 패턴 (어려움)
+export const TEMPLATE_FLORAL_GARDEN: Template = {
+  id: 'floral-garden',
+  title: '꽃 정원',
+  categoryId: 'flowers',
+  difficulty: 'hard',
+  colorCount: 10,
+  regionCount: 45,
+  estimatedTime: 30,
+  thumbnailUrl: '/templates/floral-garden.png',
+  usageCount: 0,
+  createdAt: '2026-01-28',
+  colorPalette: [
+    { number: 1, hex: '#E57373', name: '연한 빨강', totalRegions: 6 }, // 양귀비 꽃잎
+    { number: 2, hex: '#C62828', name: '진한 빨강', totalRegions: 3 }, // 양귀비 중심
+    { number: 3, hex: '#FFFFFF', name: '흰색', totalRegions: 8 }, // 데이지 꽃잎
+    { number: 4, hex: '#FDD835', name: '노랑', totalRegions: 4 }, // 데이지 중심
+    { number: 5, hex: '#9575CD', name: '연보라', totalRegions: 4 }, // 엉겅퀴 꽃
+    { number: 6, hex: '#4A148C', name: '진보라', totalRegions: 2 }, // 엉겅퀴 받침
+    { number: 7, hex: '#66BB6A', name: '연두', totalRegions: 8 }, // 잎사귀
+    { number: 8, hex: '#2E7D32', name: '진초록', totalRegions: 6 }, // 줄기/덩굴
+    { number: 9, hex: '#A5D6A7', name: '민트', totalRegions: 2 }, // 고사리
+    { number: 10, hex: '#FFECB3', name: '크림', totalRegions: 2 }, // 배경 장식
+  ],
+  templateData: {
+    viewBox: '0 0 400 500',
+    regions: [
+      // 양귀비 꽃 1 (왼쪽 상단)
+      { id: 'poppy1-petal1', colorNumber: 1, path: 'M80,120 Q60,80 80,50 Q100,80 80,120 Z', labelX: 80, labelY: 85 },
+      { id: 'poppy1-petal2', colorNumber: 1, path: 'M80,120 Q40,100 30,70 Q60,90 80,120 Z', labelX: 55, labelY: 95 },
+      { id: 'poppy1-petal3', colorNumber: 1, path: 'M80,120 Q120,100 130,70 Q100,90 80,120 Z', labelX: 105, labelY: 95 },
+      { id: 'poppy1-center', colorNumber: 2, path: 'M80,120 m-12,0 a12,12 0 1,0 24,0 a12,12 0 1,0 -24,0', labelX: 80, labelY: 120 },
+
+      // 양귀비 꽃 2 (중앙)
+      { id: 'poppy2-petal1', colorNumber: 1, path: 'M200,200 Q175,150 200,110 Q225,150 200,200 Z', labelX: 200, labelY: 155 },
+      { id: 'poppy2-petal2', colorNumber: 1, path: 'M200,200 Q150,175 140,140 Q170,165 200,200 Z', labelX: 165, labelY: 170 },
+      { id: 'poppy2-petal3', colorNumber: 1, path: 'M200,200 Q250,175 260,140 Q230,165 200,200 Z', labelX: 235, labelY: 170 },
+      { id: 'poppy2-center', colorNumber: 2, path: 'M200,200 m-15,0 a15,15 0 1,0 30,0 a15,15 0 1,0 -30,0', labelX: 200, labelY: 200 },
+
+      // 양귀비 꽃 3 (오른쪽 하단)
+      { id: 'poppy3-petal1', colorNumber: 1, path: 'M320,380 Q295,335 320,300 Q345,335 320,380 Z', labelX: 320, labelY: 340 },
+      { id: 'poppy3-center', colorNumber: 2, path: 'M320,380 m-12,0 a12,12 0 1,0 24,0 a12,12 0 1,0 -24,0', labelX: 320, labelY: 380 },
+
+      // 데이지 꽃 1 (오른쪽 상단)
+      { id: 'daisy1-petal1', colorNumber: 3, path: 'M320,80 Q330,50 320,30 Q310,50 320,80 Z', labelX: 320, labelY: 55 },
+      { id: 'daisy1-petal2', colorNumber: 3, path: 'M320,80 Q350,70 360,50 Q340,65 320,80 Z', labelX: 340, labelY: 65 },
+      { id: 'daisy1-petal3', colorNumber: 3, path: 'M320,80 Q290,70 280,50 Q300,65 320,80 Z', labelX: 300, labelY: 65 },
+      { id: 'daisy1-petal4', colorNumber: 3, path: 'M320,80 Q350,90 370,80 Q350,85 320,80 Z', labelX: 345, labelY: 82 },
+      { id: 'daisy1-petal5', colorNumber: 3, path: 'M320,80 Q290,90 270,80 Q290,85 320,80 Z', labelX: 295, labelY: 82 },
+      { id: 'daisy1-center', colorNumber: 4, path: 'M320,80 m-10,0 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0', labelX: 320, labelY: 80 },
+
+      // 데이지 꽃 2 (왼쪽 중앙)
+      { id: 'daisy2-petal1', colorNumber: 3, path: 'M70,280 Q80,250 70,230 Q60,250 70,280 Z', labelX: 70, labelY: 255 },
+      { id: 'daisy2-petal2', colorNumber: 3, path: 'M70,280 Q100,270 110,250 Q90,265 70,280 Z', labelX: 90, labelY: 265 },
+      { id: 'daisy2-petal3', colorNumber: 3, path: 'M70,280 Q40,270 30,250 Q50,265 70,280 Z', labelX: 50, labelY: 265 },
+      { id: 'daisy2-center', colorNumber: 4, path: 'M70,280 m-10,0 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0', labelX: 70, labelY: 280 },
+
+      // 데이지 꽃 3 (하단 중앙)
+      { id: 'daisy3-petal1', colorNumber: 3, path: 'M180,430 Q190,400 180,380 Q170,400 180,430 Z', labelX: 180, labelY: 405 },
+      { id: 'daisy3-petal2', colorNumber: 3, path: 'M180,430 Q210,420 220,400 Q200,415 180,430 Z', labelX: 200, labelY: 415 },
+      { id: 'daisy3-petal3', colorNumber: 3, path: 'M180,430 Q150,420 140,400 Q160,415 180,430 Z', labelX: 160, labelY: 415 },
+      { id: 'daisy3-center', colorNumber: 4, path: 'M180,430 m-10,0 a10,10 0 1,0 20,0 a10,10 0 1,0 -20,0', labelX: 180, labelY: 430 },
+
+      // 작은 데이지 (오른쪽 중앙)
+      { id: 'daisy4-center', colorNumber: 4, path: 'M350,250 m-8,0 a8,8 0 1,0 16,0 a8,8 0 1,0 -16,0', labelX: 350, labelY: 250 },
+
+      // 엉겅퀴 꽃 1 (상단 중앙)
+      { id: 'thistle1-flower', colorNumber: 5, path: 'M160,60 Q145,30 160,10 Q175,30 160,60 Q180,40 170,20 Q150,40 160,60 Z', labelX: 160, labelY: 35 },
+      { id: 'thistle1-base', colorNumber: 6, path: 'M160,60 Q150,70 155,80 Q165,80 170,70 Q160,60 160,60 Z', labelX: 160, labelY: 70 },
+
+      // 엉겅퀴 꽃 2 (오른쪽)
+      { id: 'thistle2-flower', colorNumber: 5, path: 'M370,150 Q355,120 370,100 Q385,120 370,150 Q390,130 380,110 Q360,130 370,150 Z', labelX: 370, labelY: 125 },
+      { id: 'thistle2-base', colorNumber: 6, path: 'M370,150 Q360,160 365,170 Q375,170 380,160 Q370,150 370,150 Z', labelX: 370, labelY: 160 },
+
+      // 엉겅퀴 꽃 3 (왼쪽 하단)
+      { id: 'thistle3-flower', colorNumber: 5, path: 'M50,400 Q35,370 50,350 Q65,370 50,400 Z', labelX: 50, labelY: 375 },
+
+      // 엉겅퀴 꽃 4 (상단 오른쪽)
+      { id: 'thistle4-flower', colorNumber: 5, path: 'M280,30 Q270,15 280,5 Q290,15 280,30 Z', labelX: 280, labelY: 17 },
+
+      // 잎사귀들
+      { id: 'leaf1', colorNumber: 7, path: 'M100,180 Q70,160 60,200 Q80,190 100,180 Z', labelX: 80, labelY: 180 },
+      { id: 'leaf2', colorNumber: 7, path: 'M150,280 Q130,260 110,290 Q130,285 150,280 Z', labelX: 130, labelY: 275 },
+      { id: 'leaf3', colorNumber: 7, path: 'M250,300 Q280,280 290,320 Q270,310 250,300 Z', labelX: 270, labelY: 300 },
+      { id: 'leaf4', colorNumber: 7, path: 'M300,200 Q330,180 340,220 Q320,210 300,200 Z', labelX: 320, labelY: 200 },
+      { id: 'leaf5', colorNumber: 7, path: 'M120,380 Q90,360 80,400 Q100,390 120,380 Z', labelX: 100, labelY: 380 },
+      { id: 'leaf6', colorNumber: 7, path: 'M240,100 Q260,80 280,110 Q260,105 240,100 Z', labelX: 260, labelY: 95 },
+      { id: 'leaf7', colorNumber: 7, path: 'M30,150 Q10,130 20,170 Q25,160 30,150 Z', labelX: 20, labelY: 150 },
+      { id: 'leaf8', colorNumber: 7, path: 'M380,320 Q360,300 350,340 Q365,330 380,320 Z', labelX: 365, labelY: 320 },
+
+      // 줄기/덩굴
+      { id: 'stem1', colorNumber: 8, path: 'M80,130 Q90,180 70,230 Q65,180 80,130 Z', labelX: 78, labelY: 180 },
+      { id: 'stem2', colorNumber: 8, path: 'M200,220 Q180,280 150,320 Q175,280 200,220 Z', labelX: 175, labelY: 270 },
+      { id: 'stem3', colorNumber: 8, path: 'M320,100 Q340,160 350,220 Q335,160 320,100 Z', labelX: 335, labelY: 160 },
+      { id: 'vine1', colorNumber: 8, path: 'M50,450 Q100,430 150,450 Q200,470 250,450 Q200,465 150,445 Q100,425 50,450 Z', labelX: 150, labelY: 450 },
+      { id: 'vine2', colorNumber: 8, path: 'M250,450 Q300,430 350,450 Q300,445 250,450 Z', labelX: 300, labelY: 445 },
+      { id: 'stem4', colorNumber: 8, path: 'M160,80 Q155,120 160,160 Q165,120 160,80 Z', labelX: 160, labelY: 120 },
+
+      // 고사리 잎
+      { id: 'fern1', colorNumber: 9, path: 'M30,350 Q20,320 40,300 Q35,325 30,350 Q50,330 60,310 Q45,335 30,350 Z', labelX: 40, labelY: 325 },
+      { id: 'fern2', colorNumber: 9, path: 'M370,420 Q380,390 360,370 Q365,395 370,420 Q350,400 340,380 Q355,405 370,420 Z', labelX: 360, labelY: 395 },
+
+      // 배경 장식 소용돌이
+      { id: 'swirl1', colorNumber: 10, path: 'M20,50 Q40,30 60,50 Q40,60 20,50 Z', labelX: 40, labelY: 47 },
+      { id: 'swirl2', colorNumber: 10, path: 'M380,480 Q360,460 380,440 Q390,460 380,480 Z', labelX: 380, labelY: 460 },
+    ],
+  },
+}
+
+// 샘플 템플릿 6: 만다라 패턴 (어려움)
 export const TEMPLATE_MANDALA: Template = {
   id: 'mandala-flower',
   title: '연꽃 만다라',
@@ -267,6 +376,7 @@ export const SAMPLE_TEMPLATES: Template[] = [
   TEMPLATE_FLOWER,
   TEMPLATE_HEART,
   TEMPLATE_CAT,
+  TEMPLATE_FLORAL_GARDEN,
   TEMPLATE_MANDALA,
 ]
 
