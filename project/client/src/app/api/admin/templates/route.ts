@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { SAMPLE_TEMPLATES } from '@/data/templates'
 import type { Template } from '@/types'
 
@@ -74,23 +75,36 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // TODO: 실제 데이터베이스에 저장
-    const newTemplate: Template = {
-      id: `template-${Date.now()}`,
-      title,
-      categoryId,
-      difficulty: difficulty as 'easy' | 'medium' | 'hard',
-      colorCount: 10, // 기본값
-      regionCount: 50, // 기본값
-      estimatedTime: 30, // 기본값
-      thumbnailUrl,
-      templateData: {
-        viewBox: '0 0 400 400',
-        regions: [],
-      },
-      colorPalette: [],
-      usageCount: 0,
-      createdAt: new Date().toISOString(),
+    // 실제 데이터베이스에 저장
+    const supabase = await createClient()
+    
+    // snake_case로 변환하여 저장
+    const { data: newTemplate, error } = await supabase
+      .from('templates')
+      .insert({
+        title,
+        category_id: categoryId,
+        difficulty,
+        description,
+        thumbnail_url: thumbnailUrl,
+        color_count: 10,
+        region_count: 50,
+        estimated_time: 30,
+        template_data: {
+          viewBox: '0 0 400 400',
+          regions: [],
+        },
+        color_palette: [],
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Database insert error:', error)
+      return NextResponse.json(
+        { error: '데이터베이스 저장에 실패했습니다.' },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({

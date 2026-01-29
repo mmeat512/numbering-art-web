@@ -14,6 +14,8 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  serverExternalPackages: ['potrace', 'sharp'],
 }
+
 
 export default withPWA(nextConfig)

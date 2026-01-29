@@ -51,6 +51,17 @@ export default function NewTemplatePage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null)
 
+  // AI 이미지 생성 관련 상태
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiStyle, setAiStyle] = useState<'simple' | 'medium' | 'complex'>('medium')
+  const [aiGeneratedImages, setAiGeneratedImages] = useState<Array<{
+    id: string
+    dataUrl: string
+    mimeType: string
+  }>>([]) 
+  const [selectedAiImage, setSelectedAiImage] = useState<string | null>(null)
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
+
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -112,6 +123,64 @@ export default function NewTemplatePage() {
       setIsGenerating(false)
     }
   }
+
+  // AI 이미지 생성 핸들러
+  const handleAIGenerate = async () => {
+    if (!aiPrompt.trim()) {
+      toast.error('이미지를 생성할 프롬프트를 입력해주세요.')
+      return
+    }
+
+    setIsGeneratingAI(true)
+    setAiGeneratedImages([])
+    setSelectedAiImage(null)
+    setImageFile(null)
+    setPreviewUrl('')
+
+    try {
+      const response = await fetch('/api/admin/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: aiPrompt,
+          style: aiStyle,
+          difficulty: formData.difficulty,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'AI 이미지 생성에 실패했습니다.')
+      }
+
+      const data = await response.json()
+      setAiGeneratedImages(data.data.images)
+      toast.success(`${data.data.images.length}개의 이미지가 생성되었습니다!`)
+    } catch (error) {
+      console.error('AI generation error:', error)
+      toast.error(error instanceof Error ? error.message : 'AI 이미지 생성에 실패했습니다.')
+    } finally {
+      setIsGeneratingAI(false)
+    }
+  }
+
+  // AI 생성 이미지 선택 핸들러
+  const handleSelectAiImage = async (dataUrl: string) => {
+    setSelectedAiImage(dataUrl)
+    setPreviewUrl(dataUrl)
+    
+    // dataUrl을 File 객체로 변환
+    try {
+      const res = await fetch(dataUrl)
+      const blob = await res.blob()
+      const file = new File([blob], 'ai-generated.png', { type: 'image/png' })
+      setImageFile(file)
+      setGenerationResult(null)
+    } catch (error) {
+      console.error('Failed to convert image:', error)
+    }
+  }
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -322,11 +391,121 @@ export default function NewTemplatePage() {
               </CardContent>
             </Card>
 
+            {/* AI 이미지 생성 (AI 탭일 때만 표시) */}
+            {activeTab === 'ai' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>AI 이미지 생성</CardTitle>
+                  <CardDescription>프롬프트를 입력하여 컬러링 이미지를 자동 생성합니다</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* 프롬프트 입력 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      프롬프트 *
+                    </label>
+                    <textarea
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      placeholder="예: cute cat sitting in a garden, simple cartoon style"
+                      rows={3}
+                      className="w-full rounded-lg border px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+
+                  {/* 스타일 선택 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      이미지 스타일
+                    </label>
+                    <div className="flex gap-3">
+                      {[
+                        { value: 'simple' as const, label: '간단' },
+                        { value: 'medium' as const, label: '보통' },
+                        { value: 'complex' as const, label: '복잡' },
+                      ].map((option) => (
+                        <label key={option.value} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="aiStyle"
+                            value={option.value}
+                            checked={aiStyle === option.value}
+                            onChange={(e) => setAiStyle(e.target.value as 'simple' | 'medium' | 'complex')}
+                            className="h-4 w-4"
+                          />
+                          <span>{option.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 이미지 생성 버튼 */}
+                  <Button
+                    type="button"
+                    onClick={handleAIGenerate}
+                    disabled={isGeneratingAI || !aiPrompt.trim()}
+                    className="w-full"
+                    variant="secondary"
+                  >
+                    {isGeneratingAI ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        AI 이미지 생성 중...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        AI 이미지 생성
+                      </>
+                    )}
+                  </Button>
+
+                  {/* 생성된 이미지 갤러리 */}
+                  {aiGeneratedImages.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        생성된 이미지 (클릭하여 선택)
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {aiGeneratedImages.map((img) => (
+                          <button
+                            key={img.id}
+                            type="button"
+                            onClick={() => handleSelectAiImage(img.dataUrl)}
+                            className={`relative rounded-lg overflow-hidden border-2 transition-all ${
+                              selectedAiImage === img.dataUrl 
+                                ? 'border-primary ring-2 ring-primary/50' 
+                                : 'border-border hover:border-primary/50'
+                            }`}
+                          >
+                            {img.dataUrl ? (
+                              <img
+                                src={img.dataUrl}
+                                alt="Generated"
+                                className="w-full aspect-square object-cover"
+                              />
+                            ) : null}
+                            {selectedAiImage === img.dataUrl && (
+                              <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
+                                <span className="bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-medium">
+                                  선택됨
+                                </span>
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* AI 설정 (AI 탭일 때만 표시) */}
             {activeTab === 'ai' && (
               <Card>
                 <CardHeader>
-                  <CardTitle>AI 생성 설정</CardTitle>
+                  <CardTitle>템플릿 변환 설정</CardTitle>
                   <CardDescription>색상 추출 및 영역 분할 옵션</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -454,11 +633,13 @@ export default function NewTemplatePage() {
                 <CardContent className="space-y-4">
                   {/* 미리보기 이미지 */}
                   <div className="rounded-lg overflow-hidden border">
-                    <img
-                      src={generationResult.previewImage}
-                      alt="Generated preview"
-                      className="w-full"
-                    />
+                    {generationResult.previewImage ? (
+                      <img
+                        src={generationResult.previewImage}
+                        alt="Generated preview"
+                        className="w-full"
+                      />
+                    ) : null}
                   </div>
 
                   {/* 색상 팔레트 */}

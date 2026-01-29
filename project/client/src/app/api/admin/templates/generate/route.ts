@@ -81,10 +81,14 @@ export async function POST(request: NextRequest) {
           hex: c.hex,
           percentage: Math.round(c.percentage * 10) / 10,
         })),
-        regionCount: template.regions.length,
+        regionCount: template.templateData?.regions.length || template.regions.length,
         previewImage: template.previewImageBase64,
+        // 새로운 SVG 템플릿 데이터
+        templateData: template.templateData,
+        colorPalette: template.colorPalette,
       },
     })
+
   } catch (error) {
     console.error('Template generation error:', error)
     return NextResponse.json(

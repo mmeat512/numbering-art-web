@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
 const BUCKET_TEMPLATES = 'templates'
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB for AI generated images
 
 export async function POST(request: NextRequest) {
   try {
@@ -36,14 +36,14 @@ export async function POST(request: NextRequest) {
     // 파일 크기 검증
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: '파일 크기는 5MB를 초과할 수 없습니다.' },
+        { error: '파일 크기는 10MB를 초과할 수 없습니다.' },
         { status: 400 }
       )
     }
 
-    // Supabase Storage에 업로드
+    // Supabase Storage에 업로드 (Public bucket 필요)
     const supabase = await createClient()
-    const fileExt = file.name.split('.').pop()
+    const fileExt = file.name.split('.').pop() || 'png'
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
     const filePath = fileName
 

@@ -1,10 +1,23 @@
 import sharp from 'sharp'
 import { extractColors, type ExtractedColor } from './colorExtractor'
+import { convertToSvg, type SvgTemplate } from './svgConverter'
 
 export interface GenerateOptions {
   colorCount: number // 5-30
   difficulty: 'easy' | 'medium' | 'hard'
   smoothing: number // 0-1 (영역 경계 부드러움)
+  generateSvg?: boolean // SVG 생성 여부 (기본: true)
+}
+
+export interface NumberedColor {
+  number: number
+  hex: string
+  name: string
+  r: number
+  g: number
+  b: number
+  totalRegions: number
+  percentage: number
 }
 
 export interface GeneratedTemplate {
@@ -13,6 +26,9 @@ export interface GeneratedTemplate {
   colors: ExtractedColor[]
   regions: Region[]
   previewImageBase64: string
+  // SVG 템플릿 데이터 (신규)
+  templateData?: SvgTemplate
+  colorPalette?: NumberedColor[]
 }
 
 export interface Region {
@@ -23,9 +39,9 @@ export interface Region {
 }
 
 const DIFFICULTY_SETTINGS = {
-  easy: { minColorCount: 5, maxColorCount: 10 },
-  medium: { minColorCount: 10, maxColorCount: 20 },
-  hard: { minColorCount: 20, maxColorCount: 30 },
+  easy: { minColorCount: 5, maxColorCount: 10, turdSize: 200 },
+  medium: { minColorCount: 10, maxColorCount: 20, turdSize: 100 },
+  hard: { minColorCount: 20, maxColorCount: 30, turdSize: 50 },
 }
 
 /**
@@ -35,7 +51,7 @@ export async function generateTemplate(
   imageBuffer: Buffer,
   options: GenerateOptions
 ): Promise<GeneratedTemplate> {
-  const { colorCount, difficulty, smoothing } = options
+  const { colorCount, difficulty, smoothing, generateSvg = true } = options
 
   // 난이도에 따른 색상 수 조정
   const settings = DIFFICULTY_SETTINGS[difficulty]
@@ -93,13 +109,52 @@ export async function generateTemplate(
     pixelCount: color.count,
   }))
 
-  return {
+  // 결과 객체 생성
+  const result: GeneratedTemplate = {
     width: targetWidth,
     height: targetHeight,
     colors: colorResult.colors,
     regions,
     previewImageBase64,
   }
+
+  // SVG 생성 (옵션)
+  if (generateSvg) {
+    try {
+      const svgTemplate = await convertToSvg(
+        quantizedBuffer,
+        colorResult.colors,
+        targetWidth,
+        targetHeight,
+        {
+          turdSize: settings.turdSize,
+          optTolerance: 0.2,
+        }
+      )
+
+      result.templateData = svgTemplate
+
+      // 색상 팔레트 생성 (숫자 매핑)
+      result.colorPalette = colorResult.colors.map((color, index) => {
+        const colorRegions = svgTemplate.regions.filter(r => r.colorNumber === index + 1)
+        return {
+          number: index + 1,
+          hex: color.hex,
+          name: `색상 ${index + 1}`,
+          r: color.r,
+          g: color.g,
+          b: color.b,
+          totalRegions: colorRegions.length,
+          percentage: color.percentage,
+        }
+      })
+    } catch (error) {
+      console.error('SVG 변환 실패:', error)
+      // SVG 변환 실패해도 기본 결과는 반환
+    }
+  }
+
+  return result
 }
 
 /**
@@ -112,6 +167,7 @@ async function createQuantizedImage(
   height: number
 ): Promise<Buffer> {
   const { data } = await sharp(imageBuffer)
+    .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true })
 
